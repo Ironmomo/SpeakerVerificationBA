@@ -115,7 +115,7 @@ def preprocess_data(data_path, dest_path, csv_augmentation):
             
 # Example usage
 
-root_path = os.path.join(os.getcwd(),'LibriSpeech')
+root_path = os.path.join(os.getcwd(), 'data', 'LibriSpeech')
 
 data_path = os.path.join(root_path, 'dev-clean')
 
@@ -124,6 +124,3 @@ new_data_path = os.path.join(root_path, 'preprocessed')
 AUGMENTATION_FILE = os.path.join(new_data_path, 'augmentation.csv')
 
 preprocess_data(data_path, new_data_path, AUGMENTATION_FILE)
-
-
-

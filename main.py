@@ -23,7 +23,9 @@ DEVICE = (
     else "cpu"
 )
 
-root_path = os.path.join(os.getcwd(),'LibriSpeech')
+DEVICE="cpu"
+
+root_path = os.path.join(os.getcwd(), 'data', 'LibriSpeech')
 
 new_data_path = os.path.join(root_path, 'preprocessed')
 
