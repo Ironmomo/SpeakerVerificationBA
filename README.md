@@ -1,11 +1,11 @@
 # SpeakerVerificationBA
 
-## About
+## Introduction
 
 This GitHub repository is dedicated to exploring the application of transformer networks in the domain of Automatic Speaker Recognition (ASR). The project focuses on investigating whether transformer architectures can effectively capture and learn voice dynamics for speaker identification tasks.
 
-## Initialize
-
+## Getting Started
+### Init
 1. Clone the Repo:
 ```
 git clone https://github.com/Ironmomo/SpeakerVerificationBA.git
