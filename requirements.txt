@@ -1,0 +1,12 @@
+llvmlite
+matplotlib
+numba
+numpy
+scikit-learn
+scipy
+timm
+torch
+torchaudio
+wget
+zipp
+librosa
