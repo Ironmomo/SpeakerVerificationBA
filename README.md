@@ -9,8 +9,9 @@ This GitHub repository is dedicated to exploring the application of transformer 
 1. Clone the Repo:
 ```
 git clone https://github.com/Ironmomo/SpeakerVerificationBA.git
+git lfs fetch
 ```
-3. It is recommended to use a venv:
+2. It is recommended to use a venv:
 ```
 python3 -m venv myEnv
 source myEnv/bin/activate
