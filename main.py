@@ -3,16 +3,16 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, rando
 import os
 
 from utils.Audio_Dataset import AudioDataset
-from ssast.src.models import ASTModel
+from models.ssast.src.models import ASTModel
 
-SSAST_PATH = os.path.join(os.getcwd(), 'ssast', 'pretrained_model', 'SSAST-Base-Patch-400.pth')
+SSAST_PATH = os.path.join(os.getcwd(), 'models', 'ssast', 'pretrained_model', 'SSAST-Base-Patch-400.pth')
 
 # ---------------------------------------------------------------------------------
 # hyperparameters
 # ---------------------------------------------------------------------------------
 LEARNING_RATE = 0.001
 BATCH_SIZE = 10
-EPOCHS = 5
+EPOCHS = 1
 
 # helper vars
 DEVICE = (
