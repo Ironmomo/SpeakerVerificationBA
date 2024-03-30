@@ -1,4 +1,7 @@
 ba_env/
+data/*
+!data/load_data.sh
+
 
 *.pth
 *.zip
