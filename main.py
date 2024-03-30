@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, random_split
 import os
 
-from Audio_Dataset import AudioDataset
+from utils.Audio_Dataset import AudioDataset
 from ssast.src.models import ASTModel
 
 SSAST_PATH = os.path.join(os.getcwd(), 'ssast', 'pretrained_model', 'SSAST-Base-Patch-400.pth')
