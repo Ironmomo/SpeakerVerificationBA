@@ -42,8 +42,7 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer):
     train_loss, correct = 0, 0
     model.train()
     for batch, (X, y) in enumerate(dataloader):
-        X, y = X.to(DEVICE), y.squeeze().to(DEVICE)
-        
+        X, y = X.to(DEVICE), y.squeeze(dim = 1).to(DEVICE)
         # calculate matrix transpose to match correct input dimension for ssast
         X_permuted = X.permute(0, 2, 1).to(DEVICE)
 
@@ -76,8 +75,10 @@ def evaluate(dataloader, model, loss_fn):
     model.eval()
     with torch.inference_mode():
         for X, y in dataloader:
-            X, y = X.to(DEVICE), y.squeeze().to(DEVICE)
-            pred = model(X, task='ft_cls')
+            X, y = X.to(DEVICE), y.squeeze(dim=1).to(DEVICE)
+            # calculate matrix transpose to match correct input dimension for ssast
+            X_permuted = X.permute(0, 2, 1).to(DEVICE)
+            pred = model(X_permuted, task='ft_cls')
             test_loss += loss_fn(pred, y).item()
             correct += (pred.argmax(1) == y).type(torch.float).sum().item()
 

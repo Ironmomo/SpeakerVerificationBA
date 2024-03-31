@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader, random_split, RandomSampler
 import pandas as pd
 import librosa
 import numpy as np
@@ -53,7 +53,7 @@ class AudioDataset(Dataset):
 """
 #    Example Usage   
         
-root_path = os.path.join(os.getcwd(),'LibriSpeech')
+root_path = os.path.join(os.getcwd(), 'data','LibriSpeech')
 
 new_data_path = os.path.join(root_path, 'preprocessed')
 
@@ -61,5 +61,22 @@ AUGMENTATION_FILE = os.path.join(new_data_path, 'augmentation.csv')
     
 dataset = AudioDataset(AUGMENTATION_FILE)
 
-audio, label = dataset.__getitem__(0)
+train_data, test_data = random_split(dataset, (0.8, 0.2))
+
+train_sampler = RandomSampler(train_data)
+
+dataloader = DataLoader(
+        train_data,
+        batch_size=10,
+        sampler=train_sampler
+    )
+
+
+
+current = 0
+size = len(dataloader.dataset)
+for batch, (audio, label) in enumerate(dataloader):
+    label = label.squeeze(dim = 1)
+    current = (batch + 1) * len(audio)
+    print(f"{current}/{size} Audio Shape: {audio.size()} Label Shape: {label.size()}")
 """
