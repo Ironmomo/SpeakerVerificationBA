@@ -54,11 +54,12 @@ def split_and_resample_flac(input_files, output_folder, segment_ms: int = 10000,
 def find_audio_files(directory):
     flac_files = []
     # Iterate over files in the directory
-    for file_name in os.listdir(directory):
-        # Check if the file is a regular file is audio file
-        file_ending = file_name.split(".")[-1]
-        if os.path.isfile(os.path.join(directory, file_name)) and file_ending.lower() in ["flac", "wav", "aac"]:
-            flac_files.append(os.path.join(directory, file_name))
+    for root, dirs, files in os.walk(directory):
+        for file_name in files:
+            # Check if the file is a regular file is audio file
+            file_ending = file_name.split(".")[-1]
+            if os.path.isfile(os.path.join(directory, file_name)) and file_ending.lower() in ["flac", "wav", "aac", "mp3"]:
+                flac_files.append(os.path.join(directory, file_name))
     return flac_files
 
 
@@ -108,6 +109,8 @@ def preprocess_data(data_path, dest_path, csv_augmentation):
             # append all flac files from directory to speaker flac files
             if os.path.isdir(cur_file_path):
                 speaker_flac_files += find_audio_files(directory=cur_file_path)
+            elif os.path.isfile(cur_file_path) and cur_file_path.split(".")[-1].lower() in ["flac", "wav", "aac", "mp3"]:
+                speaker_flac_files.append(cur_file_path)
 
         # Split Flac File into segments and resample
         new_flac_files = split_and_resample_flac(speaker_flac_files, new_dest)
