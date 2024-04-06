@@ -1,7 +1,7 @@
+import os
+import time
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, random_split
-import os
-
 from utils.Audio_Dataset import AudioDataset
 from models.ssast.src.models import ASTModel
 
@@ -12,7 +12,7 @@ SSAST_PATH = os.path.join(os.getcwd(), 'models', 'ssast', 'pretrained_model', 'S
 # ---------------------------------------------------------------------------------
 LEARNING_RATE = 0.001
 BATCH_SIZE = 10
-EPOCHS = 1
+EPOCHS = 10
 
 # helper vars
 DEVICE = (
@@ -22,8 +22,6 @@ DEVICE = (
     if torch.backends.mps.is_available()
     else "cpu"
 )
-
-DEVICE="cpu"
 
 root_path = os.path.join(os.getcwd(), 'data', 'LibriSpeech')
 
@@ -116,7 +114,7 @@ def main():
         batch_size=BATCH_SIZE,
         sampler=test_sampler,
     )
-    
+
     
     ####
     # Model
@@ -133,13 +131,14 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     loss_fn = torch.nn.CrossEntropyLoss()
-    
+    t_start = time.time()
     for e in range(0, EPOCHS):
         print(f"************\nTrain Epoch {e}\n************\n")
         train_one_epoch(model=model, dataloader=data_loader_train, loss_fn=loss_fn, optimizer=optimizer)
     
-    evaluate(model=model, dataloader=data_loader_test, loss_fn=loss_fn)
+        evaluate(model=model, dataloader=data_loader_test, loss_fn=loss_fn)
     
+    print(f"Time elapsed: {time.time() - t_start}\n")
 
 
 

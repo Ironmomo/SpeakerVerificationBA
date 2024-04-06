@@ -87,8 +87,9 @@ def add_csv_augmentation(file_name, entries):
 def preprocess_data(data_path, dest_path, csv_augmentation):
     # Create output folder if it doesn't exist
     os.makedirs(dest_path, exist_ok=True)
-    
+    num_speakers = len(os.listdir(data_path))
     for idx, speaker_id in enumerate(os.listdir(data_path)):
+        print(f"Processing: {(idx + 1):>5d}/{num_speakers:>5d}")
         # Get current path to iterate over
         cur_speaker_path = os.path.join(data_path, speaker_id)
         
