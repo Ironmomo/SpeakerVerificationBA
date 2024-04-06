@@ -1,6 +1,8 @@
 from pydub import AudioSegment
 import os
 import csv
+import argparse
+import uuid
 
 """
     This Script is used to preprocess the LibriSpeech dataset. It searches through all *.flac files cuts and pads them to 10s.
@@ -49,12 +51,13 @@ def split_and_resample_flac(input_files, output_folder, segment_ms: int = 10000,
     return new_files
         
 
-def find_flac_files(directory):
+def find_audio_files(directory):
     flac_files = []
     # Iterate over files in the directory
     for file_name in os.listdir(directory):
-        # Check if the file is a regular file and ends with ".flac"
-        if os.path.isfile(os.path.join(directory, file_name)) and file_name.lower().endswith(".flac"):
+        # Check if the file is a regular file is audio file
+        file_ending = file_name.split(".")[-1]
+        if os.path.isfile(os.path.join(directory, file_name)) and file_ending.lower() in ["flac", "wav", "aac"]:
             flac_files.append(os.path.join(directory, file_name))
     return flac_files
 
@@ -83,14 +86,14 @@ def add_csv_augmentation(file_name, entries):
 
 def preprocess_data(data_path, dest_path, csv_augmentation):
     # Create output folder if it doesn't exist
-    os.makedirs(dest_path, exist_ok=False)
+    os.makedirs(dest_path, exist_ok=True)
     
     for idx, speaker_id in enumerate(os.listdir(data_path)):
         # Get current path to iterate over
         cur_speaker_path = os.path.join(data_path, speaker_id)
         
         # create new speaker_id
-        new_speaker_id = str(idx)
+        new_speaker_id = str(uuid.uuid4())
         # create new path to save files
         new_dest = os.path.join(dest_path, new_speaker_id)
         # Create output folder if it doesn't exist
@@ -102,7 +105,8 @@ def preprocess_data(data_path, dest_path, csv_augmentation):
         for subdir in os.listdir(cur_speaker_path):
             cur_file_path = os.path.join(cur_speaker_path, subdir)
             # append all flac files from directory to speaker flac files
-            speaker_flac_files += find_flac_files(directory=cur_file_path)
+            if os.path.isdir(cur_file_path):
+                speaker_flac_files += find_audio_files(directory=cur_file_path)
 
         # Split Flac File into segments and resample
         new_flac_files = split_and_resample_flac(speaker_flac_files, new_dest)
@@ -114,13 +118,22 @@ def preprocess_data(data_path, dest_path, csv_augmentation):
 
             
 # Example usage
+if __name__ == "__main__":
+    
+    root_path = os.path.join(os.getcwd(), 'data')
 
-root_path = os.path.join(os.getcwd(), 'data', 'LibriSpeech')
+    parser = argparse.ArgumentParser(description='Your CLI description here')
+    parser.add_argument('-d', '--dataset', help='Specify the relative Dataset path')
+    parser.add_argument('-n', '--new', help='Specify the relative Folder where to store the preprocessed data and the augmentation.csv')
+    args = parser.parse_args()
 
-data_path = os.path.join(root_path, 'dev-clean')
-
-new_data_path = os.path.join(root_path, 'preprocessed')
-
-AUGMENTATION_FILE = os.path.join(new_data_path, 'augmentation.csv')
-
-preprocess_data(data_path, new_data_path, AUGMENTATION_FILE)
+    if args.dataset and args.new:
+        
+        data_path = os.path.join(root_path, args.dataset)
+        new_data_path = os.path.join(root_path, args.new)
+        AUGMENTATION_FILE = os.path.join(new_data_path, 'augmentation.csv')
+        preprocess_data(data_path, new_data_path, AUGMENTATION_FILE)
+    
+    else:
+        print('No value provided for dataset and/or new data path')
+    
