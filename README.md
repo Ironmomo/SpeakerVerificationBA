@@ -36,8 +36,6 @@ The script allows you to specify the path of the dataset relativ to *data/*. Kee
 You have to set the destination directory for the preprocessed data. This allows you to merge different datasets into one directory which can then be further used to create an instance of Audio_Dataset.
 e.g. 
 ```
-# Download librispeech
-./data/load_data.sh librispeech
 # Preprocess librispeech and save preprocessed data to data/preprocessed
 python3 utils/Data_preprocess -d librispeech -n preprocessed
 ```
