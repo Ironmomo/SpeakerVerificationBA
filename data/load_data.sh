@@ -59,8 +59,8 @@ elif [ "$1" == "voxceleb" ]; then
     download_urls=(
         "https://huggingface.co/datasets/ProgramComputer/voxceleb/resolve/main/vox1/vox1_test_wav.zip?download=true"
         "https://huggingface.co/datasets/ProgramComputer/voxceleb/resolve/main/vox1/vox1_dev_wav.zip?download=true"
-        #"https://huggingface.co/datasets/ProgramComputer/voxceleb/resolve/main/vox2/vox2_aac_1.zip?download=true"
-        #"https://huggingface.co/datasets/ProgramComputer/voxceleb/resolve/main/vox2/vox2_aac_2.zip?download=true"
+        "https://huggingface.co/datasets/ProgramComputer/voxceleb/resolve/main/vox2/vox2_aac_1.zip?download=true"
+        "https://huggingface.co/datasets/ProgramComputer/voxceleb/resolve/main/vox2/vox2_aac_2.zip?download=true"
     )
     download_dir="./data/voxcelebtemp"
     dest_dir="./data/voxceleb"
