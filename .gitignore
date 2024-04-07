@@ -1,9 +1,13 @@
 ba_env/
+
+# datasets
 # data/
 data/data
 
 data/voxceleb
 !data/load_data.sh
+data/audioset/audioset-download-main/audioset_download/unbal_train_audio
+
 
 
 *.pth
