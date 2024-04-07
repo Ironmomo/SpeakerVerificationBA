@@ -1,5 +1,7 @@
 ba_env/
-data/
+# data/
+data/data
+data/voxceleb
 !data/load_data.sh
 
 
