@@ -19,12 +19,12 @@ def bytes_to_gb(bytes):
     return bytes / 1024 / 1024 / 1024
 
 # Initial count and size
-path = '/home/bosfab01/SpeakerVerificationBA/data/preprocessed'
+path = '/home/bosfab01/SpeakerVerificationBA/data/' + input("Enter the path: ")
 initial_count, initial_size = count_files_and_size(path)
 initial_time = time.time()
 
 # Wait for some time to estimate speed; adjust sleep time as needed
-time.sleep(300)
+time.sleep(2)
 
 # Updated count and size after the interval
 updated_count, updated_size = count_files_and_size(path)
@@ -57,12 +57,13 @@ if speed_files_per_sec > 0:
     print(f"Current storage used: {current_storage_used_gb:.2f} GB")
     print(f"Estimated completion time: {time.ctime(estimated_end_time)}")
     print(f"Estimated total storage required: {estimated_total_size_gb:.2f} GB")
+    print(f"Speed: {speed_files_per_sec:.2f} files/sec, {speed_bytes_per_sec:.2f} bytes/sec")
 else:
     print("Insufficient data to estimate download speed.")
 
 
 # Path to the directory containing the audio file
-audio_dir = '/home/bosfab01/SpeakerVerificationBA/data/preprocessed'
+audio_dir = '/home/bosfab01/SpeakerVerificationBA/data/' + input("Enter the path: ")
 
 # Function to find the first audio file in a directory
 def find_first_audio_file(directory):

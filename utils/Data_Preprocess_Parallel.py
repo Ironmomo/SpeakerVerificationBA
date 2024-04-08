@@ -1,4 +1,4 @@
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import argparse
 import uuid
@@ -89,6 +89,9 @@ def add_csv_augmentation(file_name, entries):
 
 
 def preprocess_speaker(speaker_id, data_path, dest_path, csv_augmentation):
+
+    print(f"Processing speaker {speaker_id}...")
+
     # Get current path to iterate over
     cur_speaker_path = os.path.join(data_path, speaker_id)
 
@@ -123,7 +126,7 @@ def preprocess_data(data_path, dest_path, csv_augmentation, max_workers=os.cpu_c
     os.makedirs(dest_path, exist_ok=True)
     speaker_ids = os.listdir(data_path)
 
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Create all futures first
         futures = {executor.submit(preprocess_speaker, speaker_id, data_path, dest_path, csv_augmentation): speaker_id for speaker_id in speaker_ids}
 
