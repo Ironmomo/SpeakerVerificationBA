@@ -24,7 +24,7 @@ initial_count, initial_size = count_files_and_size(path)
 initial_time = time.time()
 
 # Wait for some time to estimate speed; adjust sleep time as needed
-time.sleep(60)
+time.sleep(300)
 
 # Updated count and size after the interval
 updated_count, updated_size = count_files_and_size(path)
