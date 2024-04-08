@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import argparse
 import uuid
@@ -123,7 +123,7 @@ def preprocess_data(data_path, dest_path, csv_augmentation, max_workers=os.cpu_c
     os.makedirs(dest_path, exist_ok=True)
     speaker_ids = os.listdir(data_path)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # Create all futures first
         futures = {executor.submit(preprocess_speaker, speaker_id, data_path, dest_path, csv_augmentation): speaker_id for speaker_id in speaker_ids}
 
