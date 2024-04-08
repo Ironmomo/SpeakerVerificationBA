@@ -19,7 +19,7 @@ def bytes_to_gb(bytes):
     return bytes / 1024 / 1024 / 1024
 
 # Initial count and size
-path = "unbalanced_flac"
+path = 'unbal_train_audio'
 initial_count, initial_size = count_files_and_size(path)
 initial_time = time.time()
 
@@ -44,7 +44,7 @@ else:
     speed_bytes_per_sec = 0
 
 # Estimate total time and storage requirements for 2 million files
-target_files = 1600000
+target_files = 1700000
 if speed_files_per_sec > 0:
     remaining_files = target_files - updated_count
     estimated_time_sec = remaining_files / speed_files_per_sec
@@ -62,7 +62,7 @@ else:
 
 
 # Path to the directory containing the audio file
-audio_dir = 'unbalanced_flac'  # Update this path to your actual directory
+audio_dir = 'unbal_train_audio'
 
 # Function to find the first audio file in a directory
 def find_first_audio_file(directory):
