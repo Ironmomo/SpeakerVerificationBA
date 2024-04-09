@@ -109,7 +109,7 @@ def preprocess_data(data_path, dest_path, csv_augmentation):
             # append all flac files from directory to speaker flac files
             if os.path.isdir(cur_file_path):
                 speaker_flac_files += find_audio_files(directory=cur_file_path)
-            elif os.path.isfile(cur_file_path) and cur_file_path.split(".")[-1].lower() in ["flac", "wav", "aac", "mp3"]:
+            elif os.path.isfile(cur_file_path) and cur_file_path.split(".")[-1].lower() in ["flac", "wav", "aac", "mp3", "m4a"]:
                 speaker_flac_files.append(cur_file_path)
 
         # Split Flac File into segments and resample

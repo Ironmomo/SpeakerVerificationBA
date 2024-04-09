@@ -90,9 +90,16 @@ elif [ "$1" == "voxceleb" ]; then
         subdirs=$(find "$download_dir" -mindepth 1 -maxdepth 1 -type d -not -name ".*" -exec basename {} \;)
 
         for subdir in $subdirs; do
-            echo "Moving from $subdir to $dest_dir"
-            # Move the contents of each subdirectory to $download_dir
-            mv "$download_dir"/"$subdir"/* "$dest_dir" || error_exit "Failed to move files"
+            
+            # Move the contents of each subdirectory to $dest_dir
+            if [ -d "$download_dir/$subdir/aac" ]; then
+                echo "is aac"
+                echo "$download_dir"/"$subdir"/aac/* to "$dest_dir"
+                mv "$download_dir"/"$subdir"/aac/* "$dest_dir" || error_exit "Failed to move files"
+            else
+                echo "$download_dir"/"$subdir"/* to "$dest_dir"
+                mv "$download_dir"/"$subdir"/* "$dest_dir" || error_exit "Failed to move files"
+            fi
             # Remove src dir
             rm -r "$download_dir"/"$subdir" || error_exit "Failed to remove source dir"
         done
