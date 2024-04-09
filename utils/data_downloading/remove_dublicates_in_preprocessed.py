@@ -36,7 +36,6 @@ def find_and_delete_duplicates(directory):
             else:
                 hashes[audio_hash] = filepath
 
-    print(f"Deleted {deleted_count} duplicate files.")
     return deleted_count, total_files
 
 # Example usage
