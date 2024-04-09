@@ -1,3 +1,0 @@
-8. April 15:00: 
-bosfab01@dalco02:~/SpeakerVerificationBA$ python3 utils/Data_Preprocess_Parallel.py -d audioset_unbal_train_audio -n preprocessed
-
