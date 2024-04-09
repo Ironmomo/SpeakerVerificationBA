@@ -1,8 +1,12 @@
 ba_env/
+
+# datasets
 data/
+
 !data/load_data.sh
 
 
+*.json
 *.pth
 *.zip
 *.wav
