@@ -6,6 +6,9 @@ data/
 !data/load_data.sh
 
 
+notes.txt
+
+
 *.json
 *.pth
 *.zip
