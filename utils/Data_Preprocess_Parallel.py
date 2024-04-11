@@ -121,7 +121,7 @@ def preprocess_speaker(speaker_id, data_path, dest_path, csv_augmentation):
     add_csv_augmentation(csv_augmentation, entries)
 
 
-def preprocess_data(data_path, dest_path, csv_augmentation, max_workers=os.cpu_count()//2):
+def preprocess_data(data_path, dest_path, csv_augmentation, max_workers=10):
     # Create output folder if it doesn't exist
     os.makedirs(dest_path, exist_ok=True)
     speaker_ids = os.listdir(data_path)
