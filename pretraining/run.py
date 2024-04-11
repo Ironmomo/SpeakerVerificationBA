@@ -151,7 +151,7 @@ if 'pretrain' not in args.task:
     train(audio_model, train_loader, val_loader, args)
 else:
     print('Now starting self-supervised pretraining for {:d} epochs'.format(args.n_epochs))
-    trainmask(audio_model, train_loader, val_loader, args) # !!!
+    trainmask(audio_model, train_loader, val_loader, args) # <-------------important!!!
 
 # if the dataset has a seperate evaluation set (e.g., speechcommands), then select the model using the validation set and eval on the evaluation set.
 # this is only for fine-tuning
