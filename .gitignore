@@ -1,7 +1,13 @@
 ba_env/
 
+# python
+__pycache__/
+
 # datasets
 data/
+pretraining/exp
+pretraining/slurm_log
+
 
 !data/load_data.sh
 
