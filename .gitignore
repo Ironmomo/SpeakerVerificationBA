@@ -2,6 +2,7 @@ ba_env/
 
 # python
 __pycache__/
+/__pycache__/
 
 # datasets
 data/
