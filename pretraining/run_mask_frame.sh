@@ -1,12 +1,13 @@
 #!/bin/bash
 
 set -x
-export TORCH_HOME=../../pretrained_models
+SCRIPT_DIR=$(cd $(dirname "$0") && pwd) # Get the directory where the script is located
+export TORCH_HOME=$SCRIPT_DIR/pretrained_models # Set TORCH_HOME relative to the script location
 mkdir -p exp
 mkdir -p slurm_log
 
 # Specify which GPUs to use
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1,2
 
 task=pretrain_joint
 mask_patch=400
@@ -39,7 +40,8 @@ timem=0
 # no mixup training
 mixup=0
 
-exp_dir=./exp/mask01-${model_size}-f${fshape}-t${tshape}-b$batch_size-lr${lr}-m${mask_patch}-${task}-${dataset}
+current_time=$(date "+%Y%m%d-%H%M%S")
+exp_dir=./exp/mask01-${model_size}-f${fshape}-t${tshape}-b$batch_size-lr${lr}-m${mask_patch}-${task}-${dataset}-${current_time}
 
 CUDA_CACHE_DISABLE=1 python3 -W ignore run.py --dataset ${dataset} \
 --data-train ${tr_data} --data-val ${te_data} --exp-dir $exp_dir \
