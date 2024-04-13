@@ -140,18 +140,20 @@ else:
 if not isinstance(audio_model, torch.nn.DataParallel):
     audio_model = torch.nn.DataParallel(audio_model)
 
+# Create folder for the experiment args.exp_dir
 print("\nCreating experiment directory: %s" % args.exp_dir)
 if os.path.exists("%s/models" % args.exp_dir) == False:
     os.makedirs("%s/models" % args.exp_dir)
 with open("%s/args.pkl" % args.exp_dir, "wb") as f:
     pickle.dump(args, f)
 
+# Training
 if 'pretrain' not in args.task:
     print('Now starting fine-tuning for {:d} epochs'.format(args.n_epochs))
-    train(audio_model, train_loader, val_loader, args)
+    train(audio_model, train_loader, val_loader, args) # fine-tuning
 else:
     print('Now starting self-supervised pretraining for {:d} epochs'.format(args.n_epochs))
-    trainmask(audio_model, train_loader, val_loader, args) # <-------------important!!!
+    trainmask(audio_model, train_loader, val_loader, args) # pretraining
 
 # if the dataset has a seperate evaluation set (e.g., speechcommands), then select the model using the validation set and eval on the evaluation set.
 # this is only for fine-tuning
