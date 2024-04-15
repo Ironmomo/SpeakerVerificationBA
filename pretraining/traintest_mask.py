@@ -65,11 +65,11 @@ def trainmask(audio_model, train_loader, test_loader, args):
 
         for i, (audio_input, _) in enumerate(train_loader):
             # measure data loading time
-            B = audio_input.size(0)
+            B = audio_input.size(0) # batch size
             audio_input = audio_input.to(device, non_blocking=True)
 
             data_time.update(time.time() - end_time)
-            per_sample_data_time.update((time.time() - end_time) / audio_input.shape[0])
+            per_sample_data_time.update((time.time() - end_time) / B)
             dnn_start_time = time.time()
 
             # first several steps for warm-up
@@ -110,8 +110,8 @@ def trainmask(audio_model, train_loader, test_loader, args):
             train_nce_meter.update(loss.detach().cpu().item())
             loss_meter.update(loss.item(), B)
             batch_time.update(time.time() - end_time)
-            per_sample_time.update((time.time() - end_time)/audio_input.shape[0])
-            per_sample_dnn_time.update((time.time() - dnn_start_time)/audio_input.shape[0])
+            per_sample_time.update((time.time() - end_time) / B)
+            per_sample_dnn_time.update((time.time() - dnn_start_time) / B)
 
             print_step = global_step % args.n_print_steps == 0
             early_print_step = epoch == 0 and global_step % (args.n_print_steps/10) == 0
@@ -129,7 +129,7 @@ def trainmask(audio_model, train_loader, test_loader, args):
                     print("training diverged...")
                     return
 
-            end_time = time.time()
+            #end_time = time.time()
             global_step += 1
 
             # pretraining data is usually very large, save model every epoch is too sparse.
@@ -182,6 +182,9 @@ def trainmask(audio_model, train_loader, test_loader, args):
                 # change the models back to train mode
                 audio_model.train()
                 print('---------------- evaluation finished ----------------')
+
+            end_time = time.time()
+
         epoch += 1
 
 def validatemask(audio_model, val_loader, args, epoch):

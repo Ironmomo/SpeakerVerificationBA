@@ -113,7 +113,7 @@ else:
     print('balanced sampler is not used')
     train_loader = torch.utils.data.DataLoader(
         dataloader.AudioDataset(args.data_train, label_csv=args.label_csv, audio_conf=audio_conf),
-        batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=False, drop_last=True)
+        batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=False, drop_last=True) # shuffle (bool, optional) – set to True to have the data reshuffled at every epoch (default: False).
 
 val_loader = torch.utils.data.DataLoader(
     dataloader.AudioDataset(args.data_val, label_csv=args.label_csv, audio_conf=val_audio_conf),
