@@ -1,5 +1,7 @@
 # based on "prep_librispeech.py" in the original codebase
 
+# this script generates a json file that contains the paths of all .flac files and a dummy label
+
 import os,torchaudio,pickle,json,time
 
 def walk(path, name):
@@ -30,6 +32,10 @@ def walk(path, name):
     with open(name + '.json', 'w') as f:
         json.dump({'data': wav_list}, f, indent=1)
 
+
+preprocessed_path = '/home/bosfab01/SpeakerVerificationBA/data/preprocessed_eval'
+walk(preprocessed_path, 'audioset_eval')
+
 # # combine json files
 # def combine_json(file_list, name='librispeech_tr960'):
 #     wav_list = []
@@ -53,5 +59,3 @@ def walk(path, name):
 
 
 
-preprocessed_path = '/home/bosfab01/SpeakerVerificationBA/data/preprocessed'
-walk(preprocessed_path, 'audioset2M_librispeech960')
