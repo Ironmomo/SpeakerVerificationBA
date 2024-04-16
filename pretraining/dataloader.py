@@ -88,6 +88,10 @@ class AudioDataset(Dataset):
         if self.noise == True:
             print('now use noise augmentation')
 
+        self.shuffle_frames = self.audio_conf.get('shuffle_frames')
+        if self.shuffle_frames == True:
+            print('now shuffle the frames')
+
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
         print('number of classes is {:d}'.format(self.label_num))
@@ -204,6 +208,10 @@ class AudioDataset(Dataset):
         if self.noise == True:
             fbank = fbank + torch.rand(fbank.shape[0], fbank.shape[1]) * np.random.rand() / 10
             fbank = torch.roll(fbank, np.random.randint(-10, 10), 0)
+
+        # shuffle the frames in the spectrogram randomly
+        if self.shuffle_frames == True:
+            fbank = fbank[torch.randperm(fbank.size(0))]
 
         # the output fbank shape is [time_frame_num, frequency_bins], e.g., [1024, 128]
         return fbank, label_indices
