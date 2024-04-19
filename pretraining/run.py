@@ -133,6 +133,10 @@ if 'pretrain' in args.task:
     # no label dimension needed as it is self-supervised, fshape=fstride and tshape=tstride
     audio_model = ASTModel(fshape=args.fshape, tshape=args.tshape, fstride=args.fshape, tstride=args.tshape,
                        input_fdim=args.num_mel_bins, input_tdim=args.target_length, model_size=args.model_size, pretrain_stage=True)
+    # print the model structure
+    print("\nInitialized model with the following arguments:")
+    print("fshape: {:d}, tshape: {:d}, fstride: {:d}, tstride: {:d}, input_fdim: {:d}, input_tdim: {:d}, model_size: {:s}".format(args.fshape, args.tshape, args.fshape, args.tshape, args.num_mel_bins, args.target_length, args.model_size))
+
 # in the fine-tuning stage
 else:
     audio_model = ASTModel(label_dim=args.n_class, fshape=args.fshape, tshape=args.tshape, fstride=args.fstride, tstride=args.tstride,

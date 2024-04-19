@@ -7,7 +7,7 @@ mkdir -p exp
 mkdir -p slurm_log
 
 # Specify which GPUs to use
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0,1,2
 
 task=pretrain_joint
 mask_patch=400
