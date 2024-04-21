@@ -211,7 +211,7 @@ class AudioDataset(Dataset):
 
         # shuffle the frames in the spectrogram randomly
         if self.shuffle_frames == True:
-            fbank = fbank[torch.randperm(fbank.size(0))]
+            fbank = fbank[torch.randperm(fbank.size(0))] # torch.randperm(fbank.size(0)) = torch.randperm(998) = tensor([  513, 234, 754, ...])
 
         # the output fbank shape is [time_frame_num, frequency_bins], e.g., [1024, 128]
         return fbank, label_indices

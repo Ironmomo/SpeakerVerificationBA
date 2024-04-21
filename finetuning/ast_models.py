@@ -238,6 +238,8 @@ class ASTModel(nn.Module):
 
     # using cluster for frame masking hurts the performance, so just use the naive random sampling
     def gen_maskid_frame(self, sequence_len=512, mask_size=100):
+        print("sequence_len: ", sequence_len)
+        print("mask_size: ", mask_size)
         mask_id = random.sample(range(0, sequence_len), mask_size)
         return torch.tensor(mask_id)
 
@@ -391,13 +393,13 @@ class ASTModel(nn.Module):
 
     # # masked patch pretraining with generative objective
     def mpg(self, input, mask_patch, cluster, show_mask=False):
-        print("input shape: ", input.shape) # [B, 
         print("mask_patch: ", mask_patch) # 400
         print("cluster: ", cluster)
         print("show_mask: ", show_mask)
         B = input.shape[0]
         x = self.v.patch_embed(input)
         print("self.v.patch_embed(input) shape: ", x.shape) # [B, 499, 768]
+        print("input shape: ", input.shape) # [B, 1, 128, 998]
         input = self.unfold(input).transpose(1, 2)
         print("unfolded input shape (after transposing dimensions 1 and 2): ", input.shape) # [B, 499, 256]
 
@@ -456,12 +458,86 @@ class ASTModel(nn.Module):
             if B > 1:
                 raise Exception('Currently only support single spectrogram probing test.')
             return pred, target
+        
+
+    def predict_masked_patches(self, input, mask_indices):
+        print("input shape: ", input.shape)
+        # input shape: [B, 1, 128, 998]
+        # mask_indices: 1D tensor containing N unique indices in the range [0, num_patches), shape: [N]
+        mask_patch = len(mask_indices) # N
+        B = input.shape[0] # batch size B
+
+        if B > 1:
+            raise Exception('Currently only support single spectrogram probing test.')
+    
+        x = self.v.patch_embed(input) # shape: [B, 499, 768]
+        unfolded_input = self.unfold(input).transpose(1, 2) # torch.nn.Unfold(kernel_size=(fshape, tshape), stride=(fstride, tstride))
+        # unfolded input shape (after transposing dimensions 1 and 2): [B, 499, 256]
+
+        # size B * N, indices of masked patches
+        mask_index = torch.empty((B, mask_patch), device=x.device, requires_grad=False).long() # shape: [B, N]
+        mask_index = mask_indices.unsqueeze(0).expand(B, -1) # shape: [B, N]
+
+        # size B * 499(sequence_len) * 768(hidden_dim)
+        mask_dense = torch.ones([x.shape[0], x.shape[1], x.shape[2]], device=x.device) # shape: [B, 499, 768]
+        print("mask_dense shape: ", mask_dense.shape) # [B, 499, 768]
+        for i in range(B):
+            mask_dense[i, mask_index[i], :] = 0
+
+        print("mask_embed shape: ", self.mask_embed.shape) # [1, 1, 768]
+        mask_tokens = self.mask_embed.expand(B, x.shape[1], -1) # this is the learnable mask embedding repeated for each token in the sequence (x.shape[1]) and for each batch (B)
+        print("mask_tokens shape: ", mask_tokens.shape) # [B, 499, 768]
+
+        # follow BEIT paper, mask with learnable masking embedding, but no performance diff observed compared with masking with 0s.
+        x = mask_dense * x + (1-mask_dense) * mask_tokens
+        print("x shape after masking: ", x.shape) # [B, 499, 768]
+
+        # go through the Transformer layers
+        cls_tokens = self.v.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+        dist_token = self.v.dist_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        print("x shape after concatenating cls_tokens and dist_token: ", x.shape) # [B, 501, 768]
+        x = x + self.v.pos_embed
+        x = self.v.pos_drop(x)
+        for blk in self.v.blocks:
+            x = blk(x)
+        x = self.v.norm(x)
+        print("x shape after transformer layers: ", x.shape) # [B, 501, 768]
+
+        pred = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float()  # [B, 400, 256]
+        target = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float() # [B, 400, 256]
+
+        for i in range(B):
+            #  +2 for indexes because cls and dis token
+            pred[i] = self.gpredlayer(x[i, mask_index[i] + self.cls_token_num, :])
+            target[i] = unfolded_input[i, mask_index[i], :]
+
+        # reconstruct the spectrogram with the predicted patches
+        reconstructed_spectrogram = unfolded_input.clone()
+        print("reconstructed_spectrogram shape: ", reconstructed_spectrogram.shape) # [B, 499, 256]
+        for i in range(B):
+            reconstructed_spectrogram[i, mask_index[i], :] = pred[i]
+        
+        # transpose and fold the reconstructed spectrogram back from [B, 499, 256] to [B, 998, 128]
+        transposed_back = reconstructed_spectrogram.transpose(1, 2) # [B, 256, 499]
+        fold = torch.nn.Fold(output_size=(128, 998), kernel_size=(self.fshape, self.tshape), stride=(self.fstride, self.tstride))
+        folded_spectrogram = fold(transposed_back) # [B, 1, 128, 998]
+
+        # squeeze the first dimension
+        folded_spectrogram = torch.squeeze(folded_spectrogram, dim=1)
+
+        print("folded and transposed shape: ", folded_spectrogram.shape) # [B, 128, 998]
+        
+        return folded_spectrogram
 
 
-    def forward(self, x, task, cluster=True, mask_patch=400):
-        # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
+
+    def forward(self, x, task, cluster=True, mask_patch=400, mask_indices=None):
+        # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
         x = x.unsqueeze(1)
+        # now x = (batch_size, 1, time_frame_num, frequency_bins), e.g., (24, 1, 998, 128)
         x = x.transpose(2, 3)
+        # now x = (batch_size, 1, frequency_bins, time_frame_num), e.g., (24, 1, 128, 998)
 
         # finetuning (ft), use the mean of all token (patch) output as clip-level representation.
         # this is default for SSAST fine-tuning as during pretraining, supervision signal is given to each token, not the [cls] token
@@ -477,7 +553,12 @@ class ASTModel(nn.Module):
         elif task == 'pretrain_mpg':
             return self.mpg(x, mask_patch=mask_patch, cluster=cluster)
         elif task == 'visualize_mask':
-            return self.mpg(x, mask_patch=mask_patch, cluster=cluster, show_mask=True)
+            result = self.predict_masked_patches(x, mask_indices=mask_indices)
+            print("result shape: ", result.shape)
+            result = result.transpose(1, 2)
+            # now result = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
+            return result
+        
         else:
             raise Exception('Task unrecognized.')
 

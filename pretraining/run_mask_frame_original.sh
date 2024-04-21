@@ -10,14 +10,14 @@ mkdir -p slurm_log
 export CUDA_VISIBLE_DEVICES=0,1,2
 
 task=pretrain_joint
-mask_patch=400
+mask_patch=400 # 390 would be more similar to original paper (because we habe 998 instead of 1024 targetlength)
 
 # audioset and librispeech
 dataset=asli
 tr_data=/home/bosfab01/SpeakerVerificationBA/data/audioset2M_librispeech960.json
 te_data=/home/bosfab01/SpeakerVerificationBA/data/audioset_eval.json
-dataset_mean=-3.6925695
-dataset_std=4.020388
+dataset_mean=-3.6925695 # actually -5.0716844 
+dataset_std=4.020388 # actually 4.386603
 target_length=998 # (10000ms - (25ms - 10ms)) // 10ms = 998
 num_mel_bins=128
 
