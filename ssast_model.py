@@ -10,8 +10,6 @@
 import torch.nn as nn
 import torch
 import sys
-# sys.path.append("/data/sls/scratch/yuangong/aed-trans/src/models/")
-# sys.path.append("/data/sls/scratch/yuangong/aed-trans/src/")
 from timm.models.layers import trunc_normal_
 import timm
 import numpy as np
@@ -271,7 +269,7 @@ class ASTModel(nn.Module):
         return x
 
     # masked patch pretraining with discriminative objective
-    def mpc(self, x, mask_patch, cluster, show_mask=False):
+    def mpc(self, x, mask_patch, cluster):
         input = self.unfold(x).transpose(1, 2)
         B = x.shape[0]
         # x in shape (batch_size, sequence_len, embedding dim)
@@ -335,35 +333,8 @@ class ASTModel(nn.Module):
         acc = 1. * correct / (B * mask_patch)
         nce = nce / (-1. * B * mask_patch)
 
-        # visualize the masked area, for probing test only, set show_mask = False for any training/inference.
-        if show_mask == False:
-            return acc, nce
-        else:
-            if B > 1:
-                raise Exception('Currently only support single spectrogram probing test.')
+        return acc, nce
 
-            self.mask_correct = torch.nn.Parameter(torch.arange(0, mask_patch), requires_grad=False)
-
-            pred = input.clone()  # [B, 512, 256]
-            masked = input.clone()
-
-            for i in range(B):
-                result = [float(t) * 99 for t in torch.eq(torch.argmax(self.softmax(total), dim=0), self.mask_correct)]
-                pred[i, mask_index[i], :] = torch.tensor(result).reshape(mask_patch, 1).expand(mask_patch, 256)
-                masked[i, mask_index[i], :] = 99.0
-
-            # print(total)
-            # print(self.softmax(total))
-            # print(torch.argmax(self.softmax(total), dim=0))
-            # print(self.mask_correct)
-            # print(torch.eq(torch.argmax(self.softmax(total), dim=0), self.mask_correct))
-            # print([float(t)*99 for t in torch.eq(torch.argmax(self.softmax(total), dim=0), self.mask_correct)])
-
-            fold = torch.nn.Fold(output_size=([self.input_fdim, self.input_tdim]), kernel_size=(self.fshape, self.tshape), stride=(self.fstride, self.tstride))
-            pred = fold(pred.transpose(1, 2))
-            masked = fold(masked.transpose(1, 2))
-
-            return pred, masked
 
     # # masked patch pretraining with generative objective
     def mpg(self, input, mask_patch, cluster):
@@ -377,7 +348,7 @@ class ASTModel(nn.Module):
 
         # size 12(batch_size) * 499(sequence_len) * 768(hidden_dim)
         mask_dense = torch.ones([x.shape[0], x.shape[1], x.shape[2]], device=x.device)
-        print("mask_dense shape: ", mask_dense.shape) # [B, 499, 768]
+        # mask_dense shape: [B, 499, 768]
         for i in range(B):
             # randomly generate #mask_patch mask indexes without duplicate
             if cluster == True:
@@ -385,30 +356,30 @@ class ASTModel(nn.Module):
                 mask_index[i] = self.gen_maskid_patch(self.num_patches, mask_patch)
             else:
                 # use this if you are masking frame, i.e., 128*2 patches
-                print("num_patches: ", self.num_patches, "mask_patch: ", mask_patch)
+                # num_patches: 499, mask_patch: N
                 mask_index[i] = self.gen_maskid_frame(self.num_patches, mask_patch) # 1D tensor containing mask_patch random unique indices in the range [0, num_patches)
-                print("mask_index shape: ", mask_index[i].shape)
+                # mask_index shape: [B, N]
             mask_dense[i, mask_index[i], :] = 0
 
-        print("mask_embed shape: ", self.mask_embed.shape) # [1, 1, 768]
+        # mask_embed shape: [1, 1, 768]
         mask_tokens = self.mask_embed.expand(B, x.shape[1], -1) # this is the learnable mask embedding repeated for each token in the sequence (x.shape[1]) and for each batch (B)
-        print("mask_tokens shape: ", mask_tokens.shape) # [B, 499, 768]
+        # mask_tokens shape: [B, 499, 768]
 
         # follow BEIT paper, mask with learnable masking embedding, but no performance diff observed compared with masking with 0s.
         x = x * mask_dense + (1-mask_dense) * mask_tokens
-        print("x shape after masking: ", x.shape) # [B, 499, 768]
+       # x shape after masking: [B, 499, 768]
 
         # go through the Transformer layers
         cls_tokens = self.v.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
         dist_token = self.v.dist_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, dist_token, x), dim=1)
-        print("x shape after concatenating cls_tokens and dist_token: ", x.shape) # [B, 501, 768]
+        # x shape after concatenating cls_tokens and dist_token: [B, 501, 768]
         x = x + self.v.pos_embed
         x = self.v.pos_drop(x)
         for blk in self.v.blocks:
             x = blk(x)
         x = self.v.norm(x)
-        print("x shape after transformer layers: ", x.shape) # [B, 501, 768]
+        # x shape after transformer layers: [B, 501, 768]
 
         pred = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float()  # [B, N, 256]
         target = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float() # [B, N, 256]
@@ -468,8 +439,8 @@ class ASTModel(nn.Module):
         x = self.v.norm(x)
         print("x shape after transformer layers: ", x.shape) # [B, 501, 768]
 
-        pred = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float()  # [B, 400, 256]
-        target = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float() # [B, 400, 256]
+        pred = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float()  # [B, N, 256]
+        target = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float() # [B, N, 256]
 
         for i in range(B):
             #  +2 for indexes because cls and dis token
@@ -495,10 +466,10 @@ class ASTModel(nn.Module):
         return folded_spectrogram
     
     def finetuningavgtok(self, x):
-        print("x shape after being passed to finetuningavgtok: ", x.shape)
+        # x shape after being passed to finetuningavgtok: [B, 1, 128, 998]
         B = x.shape[0]
         x = self.v.patch_embed(x)
-        print("x shape after patch embedding: ", x.shape)
+        # x shape after patch embedding: [B, 499, 768]
         if self.cls_token_num == 2:
             cls_tokens = self.v.cls_token.expand(B, -1, -1)
             dist_token = self.v.dist_token.expand(B, -1, -1)
@@ -506,36 +477,33 @@ class ASTModel(nn.Module):
         else:
             cls_tokens = self.v.cls_token.expand(B, -1, -1)
             x = torch.cat((cls_tokens, x), dim=1)
-        print("x shape after concatenating cls_tokens and dist_token: ", x.shape)
-        print("pos_embed shape: ", self.v.pos_embed.shape)
+        # x shape after concatenating cls_tokens and dist_token: [B, 501, 768]
+        # pos_embed shape: [1, 501, 768]
         x = x + self.v.pos_embed
         x = self.v.pos_drop(x)
-        print("x shape after adding pos_embed and pos_drop: ", x.shape)
+        # x shape after adding pos_embed and pos_drop: [B, 501, 768]
 
         for blk_id, blk in enumerate(self.v.blocks):
             x = blk(x)
-            print("x shape after block ", blk_id, ": ", x.shape)
+            # x shape in transformer layers: [B, 501, 768]
         x = self.v.norm(x)
-        print("x shape after norm: ", x.shape)
+        # x shape after transformer layers: [B, 501, 768]
 
         # average output of all tokens except cls token(s)
         x = torch.mean(x[:, self.cls_token_num:, :], dim=1)
-        print("x shape after averaging tokens: ", x.shape)
+        # x shape after averaging tokens: [B, 768]
         x = self.mlp_head(x)
-        print("x shape after mlp_head: ", x.shape)
+        # x shape after passing through mlp_head: [B, 527]
         return x
 
 
     # forward pass: this gets called when you pass the input to the model, e.g., model(input)
-    def forward(self, x, task, cluster=True, mask_patch=400, mask_indices=None):
-        print("x shape after being passed to forward: ", x.shape)
+    def forward(self, x, task, cluster=False, mask_patch=400, mask_indices=None):
         # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
         x = x.unsqueeze(1)
         # now x = (batch_size, 1, time_frame_num, frequency_bins), e.g., (24, 1, 998, 128)
         x = x.transpose(2, 3)
         # now x = (batch_size, 1, frequency_bins, time_frame_num), e.g., (24, 1, 128, 998)
-
-        print("x shape after unsqueeze and transpose: ", x.shape)
 
         # finetuning (ft), use the mean of all token (patch) output as clip-level representation.
         # this is default for SSAST fine-tuning as during pretraining, supervision signal is given to each token, not the [cls] token
@@ -552,7 +520,6 @@ class ASTModel(nn.Module):
             return self.mpg(x, mask_patch=mask_patch, cluster=cluster)
         elif task == 'visualize_mask':
             result = self.predict_masked_patches(x, mask_indices=mask_indices)
-            print("result shape: ", result.shape)
             result = result.transpose(1, 2)
             # now result = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
             return result

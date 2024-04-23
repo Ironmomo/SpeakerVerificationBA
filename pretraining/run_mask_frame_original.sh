@@ -14,8 +14,7 @@ mask_patch=400 # 390 would be more similar to original paper (because we habe 99
 
 # audioset and librispeech
 dataset=asli
-#tr_data=/home/bosfab01/SpeakerVerificationBA/data/audioset2M_librispeech960.json
-tr_data=/home/bosfab01/SpeakerVerificationBA/data/audioset_eval.json
+tr_data=/home/bosfab01/SpeakerVerificationBA/data/audioset2M_librispeech960.json
 te_data=/home/bosfab01/SpeakerVerificationBA/data/audioset_eval.json
 dataset_mean=-3.6925695 # actually -5.0716844 
 dataset_std=4.020388 # actually 4.386603
@@ -52,4 +51,4 @@ CUDA_CACHE_DISABLE=1 python3 -W ignore run.py --dataset ${dataset} \
 --tstride $tstride --fstride $fstride --fshape ${fshape} --tshape ${tshape} \
 --dataset_mean ${dataset_mean} --dataset_std ${dataset_std} --target_length ${target_length} --num_mel_bins ${num_mel_bins} \
 --model_size ${model_size} --mask_patch ${mask_patch} --n-print-steps 100 \
---task ${task} --lr_patience ${lr_patience} --epoch_iter 4000
+--task ${task} --lr_patience ${lr_patience} --epoch_iter 4000 --shuffle_frames False
