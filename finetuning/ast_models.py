@@ -5,7 +5,7 @@
 # @Email   : yuangong@mit.edu
 # @File    : ast_models.py
 
-# adapted by Fabian Bosshard
+# Adaptions made by Andrin Fassbind and Fabian Bosshard, ZHAW (Zurich University of Applied Sciences)
 
 import torch.nn as nn
 import torch
@@ -203,6 +203,10 @@ class ASTModel(nn.Module):
             new_pos_embed = new_pos_embed.reshape(1, self.original_embedding_dim, num_patches).transpose(1, 2)
             self.v.pos_embed = nn.Parameter(torch.cat([self.v.pos_embed[:, :self.cls_token_num, :].detach(), new_pos_embed], dim=1))
 
+            # print all the parameters and their shapes
+            for name, param in self.named_parameters():
+                print(name, param.shape)
+
     # get the shape of intermediate representation.
     def get_shape(self, fstride, tstride, input_fdim, input_tdim, fshape, tshape):
         test_input = torch.randn(1, 1, input_fdim, input_tdim)
@@ -242,28 +246,6 @@ class ASTModel(nn.Module):
         print("mask_size: ", mask_size)
         mask_id = random.sample(range(0, sequence_len), mask_size)
         return torch.tensor(mask_id)
-
-    def finetuningavgtok(self, x):
-        B = x.shape[0]
-        x = self.v.patch_embed(x)
-        if self.cls_token_num == 2:
-            cls_tokens = self.v.cls_token.expand(B, -1, -1)
-            dist_token = self.v.dist_token.expand(B, -1, -1)
-            x = torch.cat((cls_tokens, dist_token, x), dim=1)
-        else:
-            cls_tokens = self.v.cls_token.expand(B, -1, -1)
-            x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.v.pos_embed
-        x = self.v.pos_drop(x)
-
-        for blk_id, blk in enumerate(self.v.blocks):
-            x = blk(x)
-        x = self.v.norm(x)
-
-        # average output of all tokens except cls token(s)
-        x = torch.mean(x[:, self.cls_token_num:, :], dim=1)
-        x = self.mlp_head(x)
-        return x
 
     def finetuningcls(self, x):
         B = x.shape[0]
@@ -529,15 +511,49 @@ class ASTModel(nn.Module):
         print("folded and transposed shape: ", folded_spectrogram.shape) # [B, 128, 998]
         
         return folded_spectrogram
+    
+    def finetuningavgtok(self, x):
+        print("x shape after being passed to finetuningavgtok: ", x.shape)
+        B = x.shape[0]
+        x = self.v.patch_embed(x)
+        print("x shape after patch embedding: ", x.shape)
+        if self.cls_token_num == 2:
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            dist_token = self.v.dist_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        else:
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, x), dim=1)
+        print("x shape after concatenating cls_tokens and dist_token: ", x.shape)
+        print("pos_embed shape: ", self.v.pos_embed.shape)
+        x = x + self.v.pos_embed
+        x = self.v.pos_drop(x)
+        print("x shape after adding pos_embed and pos_drop: ", x.shape)
+
+        for blk_id, blk in enumerate(self.v.blocks):
+            x = blk(x)
+            print("x shape after block ", blk_id, ": ", x.shape)
+        x = self.v.norm(x)
+        print("x shape after norm: ", x.shape)
+
+        # average output of all tokens except cls token(s)
+        x = torch.mean(x[:, self.cls_token_num:, :], dim=1)
+        print("x shape after averaging tokens: ", x.shape)
+        x = self.mlp_head(x)
+        print("x shape after mlp_head: ", x.shape)
+        return x
 
 
-
+    # forward pass: this gets called when you pass the input to the model, e.g., model(input)
     def forward(self, x, task, cluster=True, mask_patch=400, mask_indices=None):
+        print("x shape after being passed to forward: ", x.shape)
         # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
         x = x.unsqueeze(1)
         # now x = (batch_size, 1, time_frame_num, frequency_bins), e.g., (24, 1, 998, 128)
         x = x.transpose(2, 3)
         # now x = (batch_size, 1, frequency_bins, time_frame_num), e.g., (24, 1, 128, 998)
+
+        print("x shape after unsqueeze and transpose: ", x.shape)
 
         # finetuning (ft), use the mean of all token (patch) output as clip-level representation.
         # this is default for SSAST fine-tuning as during pretraining, supervision signal is given to each token, not the [cls] token
@@ -561,6 +577,7 @@ class ASTModel(nn.Module):
         
         else:
             raise Exception('Task unrecognized.')
+
 
 if __name__ == '__main__':
     # this is an example of how to use the SSAST model
