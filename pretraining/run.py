@@ -13,10 +13,11 @@ import sys
 import time
 import torch
 from torch.utils.data import WeightedRandomSampler
-basepath = os.path.dirname(os.path.dirname(sys.path[0]))
-sys.path.append(basepath)
+script_dir = os.path.dirname(__file__) # Get the directory of the script being run (which is in the current directory)
+parent_dir = os.path.dirname(script_dir) # Move up to the parent directory (one level up)
+sys.path.append(parent_dir) # Add the parent directory to sys.path
 import dataloader
-from ast_models import ASTModel
+from ssast_model import ASTModel
 import numpy as np
 from traintest import train, validate
 from traintest_mask import trainmask

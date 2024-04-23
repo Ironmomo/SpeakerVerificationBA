@@ -8,10 +8,11 @@ __pycache__/
 data/
 pretraining/exp
 pretraining/slurm_log
-finetuning/data
 
 
 !data/load_data.sh
+
+!data/label_information.csv
 
 
 notes.txt

@@ -175,6 +175,7 @@ def trainmask(audio_model, train_loader, test_loader, args):
 
         epoch += 1
 
+
 def validatemask(audio_model, val_loader, args, epoch):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if not isinstance(audio_model, nn.DataParallel):

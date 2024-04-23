@@ -14,7 +14,8 @@ mask_patch=400 # 390 would be more similar to original paper (because we habe 99
 
 # audioset and librispeech
 dataset=asli
-tr_data=/home/bosfab01/SpeakerVerificationBA/data/audioset2M_librispeech960.json
+#tr_data=/home/bosfab01/SpeakerVerificationBA/data/audioset2M_librispeech960.json
+tr_data=/home/bosfab01/SpeakerVerificationBA/data/audioset_eval.json
 te_data=/home/bosfab01/SpeakerVerificationBA/data/audioset_eval.json
 dataset_mean=-3.6925695 # actually -5.0716844 
 dataset_std=4.020388 # actually 4.386603

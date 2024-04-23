@@ -5,13 +5,13 @@
 # @Email   : yuangong@mit.edu
 # @File    : ast_models.py
 
-# the unified ast models for all pretraining/fine-tuning tasks.
+# Adaptions made by Andrin Fassbind and Fabian Bosshard, ZHAW (Zurich University of Applied Sciences)
 
 import torch.nn as nn
 import torch
 import sys
-sys.path.append("/data/sls/scratch/yuangong/aed-trans/src/models/")
-sys.path.append("/data/sls/scratch/yuangong/aed-trans/src/")
+# sys.path.append("/data/sls/scratch/yuangong/aed-trans/src/models/")
+# sys.path.append("/data/sls/scratch/yuangong/aed-trans/src/")
 from timm.models.layers import trunc_normal_
 import timm
 import numpy as np
@@ -203,6 +203,10 @@ class ASTModel(nn.Module):
             new_pos_embed = new_pos_embed.reshape(1, self.original_embedding_dim, num_patches).transpose(1, 2)
             self.v.pos_embed = nn.Parameter(torch.cat([self.v.pos_embed[:, :self.cls_token_num, :].detach(), new_pos_embed], dim=1))
 
+            # print all the parameters and their shapes
+            for name, param in self.named_parameters():
+                print(name, param.shape)
+
     # get the shape of intermediate representation.
     def get_shape(self, fstride, tstride, input_fdim, input_tdim, fshape, tshape):
         test_input = torch.randn(1, 1, input_fdim, input_tdim)
@@ -240,28 +244,6 @@ class ASTModel(nn.Module):
     def gen_maskid_frame(self, sequence_len=512, mask_size=100):
         mask_id = random.sample(range(0, sequence_len), mask_size)
         return torch.tensor(mask_id)
-
-    def finetuningavgtok(self, x):
-        B = x.shape[0]
-        x = self.v.patch_embed(x)
-        if self.cls_token_num == 2:
-            cls_tokens = self.v.cls_token.expand(B, -1, -1)
-            dist_token = self.v.dist_token.expand(B, -1, -1)
-            x = torch.cat((cls_tokens, dist_token, x), dim=1)
-        else:
-            cls_tokens = self.v.cls_token.expand(B, -1, -1)
-            x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.v.pos_embed
-        x = self.v.pos_drop(x)
-
-        for blk_id, blk in enumerate(self.v.blocks):
-            x = blk(x)
-        x = self.v.norm(x)
-
-        # average output of all tokens except cls token(s)
-        x = torch.mean(x[:, self.cls_token_num:, :], dim=1)
-        x = self.mlp_head(x)
-        return x
 
     def finetuningcls(self, x):
         B = x.shape[0]
@@ -385,14 +367,17 @@ class ASTModel(nn.Module):
 
     # # masked patch pretraining with generative objective
     def mpg(self, input, mask_patch, cluster):
+        # input shape: [B, 1, 128, 998]
         B = input.shape[0]
-        x = self.v.patch_embed(input)
+        x = self.v.patch_embed(input) # [B, 499, 768]
         input = self.unfold(input).transpose(1, 2)
 
         # size 12(batch_size) * 100(#mask_patch), index of masked patches
-        mask_index = torch.empty((B, mask_patch), device=x.device, requires_grad=False).long()
-        # size 12(batch_size) * 512(sequence_len) * 768(hidden_dim)
+        mask_index = torch.empty((B, mask_patch), device=x.device, requires_grad=False).long() # [B, N]
+
+        # size 12(batch_size) * 499(sequence_len) * 768(hidden_dim)
         mask_dense = torch.ones([x.shape[0], x.shape[1], x.shape[2]], device=x.device)
+        print("mask_dense shape: ", mask_dense.shape) # [B, 499, 768]
         for i in range(B):
             # randomly generate #mask_patch mask indexes without duplicate
             if cluster == True:
@@ -400,26 +385,33 @@ class ASTModel(nn.Module):
                 mask_index[i] = self.gen_maskid_patch(self.num_patches, mask_patch)
             else:
                 # use this if you are masking frame, i.e., 128*2 patches
-                mask_index[i] = self.gen_maskid_frame(self.num_patches, mask_patch)
+                print("num_patches: ", self.num_patches, "mask_patch: ", mask_patch)
+                mask_index[i] = self.gen_maskid_frame(self.num_patches, mask_patch) # 1D tensor containing mask_patch random unique indices in the range [0, num_patches)
+                print("mask_index shape: ", mask_index[i].shape)
             mask_dense[i, mask_index[i], :] = 0
 
-        mask_tokens = self.mask_embed.expand(B, x.shape[1], -1)
+        print("mask_embed shape: ", self.mask_embed.shape) # [1, 1, 768]
+        mask_tokens = self.mask_embed.expand(B, x.shape[1], -1) # this is the learnable mask embedding repeated for each token in the sequence (x.shape[1]) and for each batch (B)
+        print("mask_tokens shape: ", mask_tokens.shape) # [B, 499, 768]
 
         # follow BEIT paper, mask with learnable masking embedding, but no performance diff observed compared with masking with 0s.
         x = x * mask_dense + (1-mask_dense) * mask_tokens
+        print("x shape after masking: ", x.shape) # [B, 499, 768]
 
         # go through the Transformer layers
         cls_tokens = self.v.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
         dist_token = self.v.dist_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        print("x shape after concatenating cls_tokens and dist_token: ", x.shape) # [B, 501, 768]
         x = x + self.v.pos_embed
         x = self.v.pos_drop(x)
         for blk in self.v.blocks:
             x = blk(x)
         x = self.v.norm(x)
+        print("x shape after transformer layers: ", x.shape) # [B, 501, 768]
 
-        pred = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float()  # e.g. size 12*100*256
-        target = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float() # e.g. size 12*100*256
+        pred = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float()  # [B, N, 256]
+        target = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float() # [B, N, 256]
 
         for i in range(B):
             #  +2 for indexes because cls and dis token
@@ -430,11 +422,120 @@ class ASTModel(nn.Module):
         mse = torch.mean((pred - target) ** 2)
 
         return mse
+        
 
-    def forward(self, x, task, cluster=True, mask_patch=400):
-        # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
+    def predict_masked_patches(self, input, mask_indices):
+        print("input shape: ", input.shape)
+        # input shape: [B, 1, 128, 998]
+        # mask_indices: 1D tensor containing N unique indices in the range [0, num_patches), shape: [N]
+        mask_patch = len(mask_indices) # N
+        B = input.shape[0] # batch size B
+
+        if B > 1:
+            raise Exception('Currently only support single spectrogram probing test.')
+    
+        x = self.v.patch_embed(input) # shape: [B, 499, 768]
+        unfolded_input = self.unfold(input).transpose(1, 2) # torch.nn.Unfold(kernel_size=(fshape, tshape), stride=(fstride, tstride))
+        # unfolded input shape (after transposing dimensions 1 and 2): [B, 499, 256]
+
+        # size B * N, indices of masked patches
+        mask_index = torch.empty((B, mask_patch), device=x.device, requires_grad=False).long() # shape: [B, N]
+        mask_index = mask_indices.unsqueeze(0).expand(B, -1) # shape: [B, N]
+
+        # size B * 499(sequence_len) * 768(hidden_dim)
+        mask_dense = torch.ones([x.shape[0], x.shape[1], x.shape[2]], device=x.device) # shape: [B, 499, 768]
+        print("mask_dense shape: ", mask_dense.shape) # [B, 499, 768]
+        for i in range(B):
+            mask_dense[i, mask_index[i], :] = 0
+
+        print("mask_embed shape: ", self.mask_embed.shape) # [1, 1, 768]
+        mask_tokens = self.mask_embed.expand(B, x.shape[1], -1) # this is the learnable mask embedding repeated for each token in the sequence (x.shape[1]) and for each batch (B)
+        print("mask_tokens shape: ", mask_tokens.shape) # [B, 499, 768]
+
+        # follow BEIT paper, mask with learnable masking embedding, but no performance diff observed compared with masking with 0s.
+        x = mask_dense * x + (1-mask_dense) * mask_tokens
+        print("x shape after masking: ", x.shape) # [B, 499, 768]
+
+        # go through the Transformer layers
+        cls_tokens = self.v.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+        dist_token = self.v.dist_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        print("x shape after concatenating cls_tokens and dist_token: ", x.shape) # [B, 501, 768]
+        x = x + self.v.pos_embed
+        x = self.v.pos_drop(x)
+        for blk in self.v.blocks:
+            x = blk(x)
+        x = self.v.norm(x)
+        print("x shape after transformer layers: ", x.shape) # [B, 501, 768]
+
+        pred = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float()  # [B, 400, 256]
+        target = torch.empty((B, mask_patch, self.fshape * self.tshape), device=x.device).float() # [B, 400, 256]
+
+        for i in range(B):
+            #  +2 for indexes because cls and dis token
+            pred[i] = self.gpredlayer(x[i, mask_index[i] + self.cls_token_num, :])
+            target[i] = unfolded_input[i, mask_index[i], :]
+
+        # reconstruct the spectrogram with the predicted patches
+        reconstructed_spectrogram = unfolded_input.clone()
+        print("reconstructed_spectrogram shape: ", reconstructed_spectrogram.shape) # [B, 499, 256]
+        for i in range(B):
+            reconstructed_spectrogram[i, mask_index[i], :] = pred[i]
+        
+        # transpose and fold the reconstructed spectrogram back from [B, 499, 256] to [B, 998, 128]
+        transposed_back = reconstructed_spectrogram.transpose(1, 2) # [B, 256, 499]
+        fold = torch.nn.Fold(output_size=(128, 998), kernel_size=(self.fshape, self.tshape), stride=(self.fstride, self.tstride))
+        folded_spectrogram = fold(transposed_back) # [B, 1, 128, 998]
+
+        # squeeze the first dimension
+        folded_spectrogram = torch.squeeze(folded_spectrogram, dim=1)
+
+        print("folded and transposed shape: ", folded_spectrogram.shape) # [B, 128, 998]
+        
+        return folded_spectrogram
+    
+    def finetuningavgtok(self, x):
+        print("x shape after being passed to finetuningavgtok: ", x.shape)
+        B = x.shape[0]
+        x = self.v.patch_embed(x)
+        print("x shape after patch embedding: ", x.shape)
+        if self.cls_token_num == 2:
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            dist_token = self.v.dist_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        else:
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, x), dim=1)
+        print("x shape after concatenating cls_tokens and dist_token: ", x.shape)
+        print("pos_embed shape: ", self.v.pos_embed.shape)
+        x = x + self.v.pos_embed
+        x = self.v.pos_drop(x)
+        print("x shape after adding pos_embed and pos_drop: ", x.shape)
+
+        for blk_id, blk in enumerate(self.v.blocks):
+            x = blk(x)
+            print("x shape after block ", blk_id, ": ", x.shape)
+        x = self.v.norm(x)
+        print("x shape after norm: ", x.shape)
+
+        # average output of all tokens except cls token(s)
+        x = torch.mean(x[:, self.cls_token_num:, :], dim=1)
+        print("x shape after averaging tokens: ", x.shape)
+        x = self.mlp_head(x)
+        print("x shape after mlp_head: ", x.shape)
+        return x
+
+
+    # forward pass: this gets called when you pass the input to the model, e.g., model(input)
+    def forward(self, x, task, cluster=True, mask_patch=400, mask_indices=None):
+        print("x shape after being passed to forward: ", x.shape)
+        # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
         x = x.unsqueeze(1)
+        # now x = (batch_size, 1, time_frame_num, frequency_bins), e.g., (24, 1, 998, 128)
         x = x.transpose(2, 3)
+        # now x = (batch_size, 1, frequency_bins, time_frame_num), e.g., (24, 1, 128, 998)
+
+        print("x shape after unsqueeze and transpose: ", x.shape)
 
         # finetuning (ft), use the mean of all token (patch) output as clip-level representation.
         # this is default for SSAST fine-tuning as during pretraining, supervision signal is given to each token, not the [cls] token
@@ -450,72 +551,10 @@ class ASTModel(nn.Module):
         elif task == 'pretrain_mpg':
             return self.mpg(x, mask_patch=mask_patch, cluster=cluster)
         elif task == 'visualize_mask':
-            return self.mpc(x, mask_patch=mask_patch, cluster=cluster, show_mask=True)
+            result = self.predict_masked_patches(x, mask_indices=mask_indices)
+            print("result shape: ", result.shape)
+            result = result.transpose(1, 2)
+            # now result = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
+            return result
         else:
             raise Exception('Task unrecognized.')
-
-if __name__ == '__main__':
-    # this is an example of how to use the SSAST model
-
-    # pretraining stage
-    # suppose you have an unlabled dataset with avg length of 1024 frames (i.e., 10.24s)
-    input_tdim = 1024
-    # create a 16*16 patch based AST model for pretraining.
-    # note, we don't use patch split overlap in pretraining, so fstride=fshape and tstride=tshape
-    ast_mdl = ASTModel(
-                 fshape=16, tshape=16, fstride=16, tstride=16,
-                 input_fdim=128, input_tdim=input_tdim, model_size='base',
-                 pretrain_stage=True)
-    # # alternatively, create a frame based AST model
-    # ast_mdl = ASTModel(
-    #              fshape=128, tshape=2, fstride=128, tstride=2,
-    #              input_fdim=128, input_tdim=input_tdim, model_size='base',
-    #              pretrain=True)
-
-    # do pretraining, see src/traintest_mask.py for our full pretraining code
-    # input in shape [batch_size, input_tdim, input_fdim]
-    test_input = torch.zeros([10, input_tdim, 128])
-    # mask 100 patches for both discriminative and generative loss
-    acc, nce_loss = ast_mdl(test_input, task='pretrain_mpc', mask_patch=100)
-    mse_loss = ast_mdl(test_input, task='pretrain_mpg', mask_patch=100)
-    loss = nce_loss + 10 * mse_loss
-    # do back propagate and update the model, etc
-
-    # after pretraining, save the pretrained model.
-    # the code is designed for Dataparallel model
-    ast_mdl = torch.nn.DataParallel(ast_mdl)
-    torch.save(ast_mdl.state_dict(), './test_mdl.pth')
-
-    # fine-tuning stage
-    # now you have a labeled dataset you want to finetune AST on
-    # suppose the avg length is 100 frames (1s) and there are 35 classes
-    # the fshape and tshape must be same in pretraining and finetuning
-    # but fstride and tstride can be different in pretraining and finetuning
-    # using smaller strides improves the performance but also increase the computational overhead
-    # set pretrain_stage as False since now is in the finetuning stage
-    # provide the path of the pretrained model you want to load
-    input_tdim = 100  # fine-tuning data length can be different with pretraining data length
-    ast_mdl = ASTModel(label_dim=35,
-                 fshape=16, tshape=16, fstride=10, tstride=10,
-                 input_fdim=128, input_tdim=input_tdim, model_size='base',
-                 pretrain_stage=False, load_pretrained_mdl_path='./test_mdl.pth')
-    # # alternatively, use a frame based AST model
-    # ast_mdl = ASTModel(label_dim=35,
-    #              fshape=128, tshape=2, fstride=128, tstride=1,
-    #              input_fdim=128, input_tdim=input_tdim, model_size='base',
-    #              pretrain_stage=False, load_pretrained_mdl_path='./test_mdl.pth')
-
-    # do finetuning, see src/traintest.py for our finetuning code
-    test_input = torch.zeros([10, input_tdim, 128])
-    prediction = ast_mdl(test_input, task='ft_avgtok')
-    # output should in shape [batch_size, label_dim]
-    print(prediction.shape)
-    # calculate the loss, do back propagate, etc
-
-    # # (optional) do some probe test
-    # test_input = torch.zeros([1, input_tdim, 128]).to(device)
-    # acc, nce = ast_mdl(test_input, task='pretrain_mpc', mask_patch=100)
-    # # you can visualize the mask
-    # pred, masked = ast_mdl(test_input, task='visualize_mask', mask_patch=100)
-    # plt.imshow(masked[0,0])
-    # plt.show()
