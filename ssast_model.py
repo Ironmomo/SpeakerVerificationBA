@@ -1,11 +1,4 @@
-# -*- coding: utf-8 -*-
-# @Time    : 7/16/21 3:12 AM
-# @Author  : Yuan Gong
-# @Affiliation  : Massachusetts Institute of Technology
-# @Email   : yuangong@mit.edu
-# @File    : ast_models.py
-
-# Adaptions made by Andrin Fassbind and Fabian Bosshard, ZHAW (Zurich University of Applied Sciences)
+# Based on code by Yuan Gong
 
 import torch.nn as nn
 import torch

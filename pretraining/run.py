@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-# @Time    : 6/11/21 12:57 AM
-# @Author  : Yuan Gong
-# @Affiliation  : Massachusetts Institute of Technology
-# @Email   : yuangong@mit.edu
-# @File    : run.py
+# Based on code by Yuan Gong
 
 import argparse
 import os
@@ -42,7 +37,7 @@ parser.add_argument('--lr', '--learning-rate', default=0.001, type=float, metava
 parser.add_argument('--warmup', help='if use warmup learning rate scheduler', type=ast.literal_eval, default='True')
 parser.add_argument("--optim", type=str, default="adam", help="training optimizer", choices=["sgd", "adam"])
 parser.add_argument('-b', '--batch-size', default=12, type=int, metavar='N', help='mini-batch size')
-parser.add_argument('-w', '--num-workers', default=16, type=int, metavar='NW', help='# of workers for dataloading (default: 32)')
+parser.add_argument('-w', '--num-workers', default=16, type=int, metavar='NW', help='# of workers for dataloading (default: 16)')
 parser.add_argument("--n-epochs", type=int, default=1, help="number of maximum training epochs")
 # only used in pretraining stage or from-scratch fine-tuning experiments
 parser.add_argument("--lr_patience", type=int, default=1, help="how many epoch to wait to reduce lr if mAP doesn't improve")

@@ -1,3 +1,5 @@
+# Based on code by Yuan Gong
+
 import sys
 import os
 import datetime
@@ -119,7 +121,6 @@ def trainmask(audio_model, train_loader, test_loader, args):
                     print("training diverged...")
                     return
 
-            #end_time = time.time()
             global_step += 1
 
             # pretraining data is usually very large, save model every epoch is too sparse.

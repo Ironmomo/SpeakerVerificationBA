@@ -1,14 +1,4 @@
-# -*- coding: utf-8 -*-
-# @Time    : 6/19/21 12:23 AM
-# @Author  : Yuan Gong
-# @Affiliation  : Massachusetts Institute of Technology
-# @Email   : yuangong@mit.edu
-# @File    : dataloader.py.py
-
-# Author: David Harwath
-# with some functions borrowed from https://github.com/SeanNaren/deepspeech.pytorch
-
-# Adaptions made by Andrin Fassbind and Fabian Bosshard, ZHAW (Zurich University of Applied Sciences)
+# Based on code by Yuan Gong, David Harwath, and SeanNaren
 
 import csv
 import json
@@ -94,6 +84,8 @@ class AudioDataset(Dataset):
         self.shuffle_frames = self.audio_conf.get('shuffle_frames')
         if self.shuffle_frames == True:
             print('now shuffle the frames')
+        else:
+            print('now do not shuffle the frames')
 
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
