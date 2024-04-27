@@ -17,11 +17,14 @@ pretraining/slurm_log
 
 notes.txt
 
+!plots_and_audios/audios
+
+
 
 *.json
 *.pth
 *.zip
-*.wav
+#*.wav
 *.pyc
 *.flac
 *.DS_Store
