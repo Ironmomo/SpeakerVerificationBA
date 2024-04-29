@@ -1,4 +1,5 @@
-# Based on code by Yuan Gong, David Harwath, and SeanNaren
+#  Original Authors: David Harwath, SeanNaren, Yuan Gong, 2021, Massachusetts Institute of Technology
+#  Edited by: Andrin Fassbind, Fabian Bosshard, 2024, Zurich University of Applied Sciences
 
 import csv
 import json

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Based on code by Yuan Gong
+#  Original Author: Yuan Gong, 2021, Massachusetts Institute of Technology
+#  Edited by: Andrin Fassbind, Fabian Bosshard, 2024, Zurich University of Applied Sciences
 
 set -x
 SCRIPT_DIR=$(cd $(dirname "$0") && pwd) # Get the directory where the script is located
@@ -39,11 +40,11 @@ timem=0
 # no mixup training
 mixup=0
 
-epoch=10
+epoch=5
 batch_size=48
 
 # shuffle frames in the spectrogram in random order
-shuffle_frames="False"
+shuffle_frames="True"
 # how often should model be evaluated on the validation set and saved
 epoch_iter=4000
 # how often should loss and statistics be printed

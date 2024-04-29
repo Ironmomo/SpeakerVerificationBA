@@ -1,4 +1,5 @@
-# Based on code by Yuan Gong
+#  Original Authors: Yuan Gong, 2021, Massachusetts Institute of Technology
+#  Edited by: Andrin Fassbind, Fabian Bosshard, 2024, Zurich University of Applied Sciences
 
 import torch.nn as nn
 import torch
