@@ -31,50 +31,34 @@ The repository is structured as follows:
     └── 📁finetuning
         └── sandbox.ipynb
     └── main.py
-    └── 📁plots
+    └── 📁plots_and_audios
+        └── 📁audios
+        └── audios_thesis.ipynb
+        └── 📁plots
         └── plots_thesis.ipynb
-        └── pretraining_progress.pdf
-        └── reconstructed_spectrogram.pdf
-        └── reconstructed_spectrogram_multiple.pdf
-        └── training_progress.pdf
-        └── waveform_spectrogram.pdf
+        └── sandbox.ipynb
     └── 📁pretraining
         └── 📁exp
         └── result_gong.csv
         └── run.py
         └── run_mask.sh
         └── sandbox.ipynb
-        └── 📁slurm_log
         └── traintest.py
         └── traintest_mask.py
         └── 📁utilities
             └── __init__.py
-            └── 📁__pycache__
-                └── __init__.cpython-310.pyc
-                └── stats.cpython-310.pyc
-                └── util.cpython-310.pyc
             └── stats.py
             └── util.py
     └── requirements.txt
     └── ssast_model.py
     └── 📁utils
+        └── Audio_Augmentation_Creation.py
         └── Audio_Dataset.py
         └── Audio_Loading.py
-        └── Data_Preprocess.py
         └── Data_Preprocess_Parallel.py
-        └── convert_to_flac16mono.py
         └── 📁data_downloading
-            └── clean_up_audioset_hugging.py
-            └── detect_dublicates_in_preprocessed.py
-            └── download_audioset_eval_hugging.py
-            └── download_audioset_unbal_hugging.py
             └── load_data.sh
-            └── remove_dublicates_in_preprocessed.py
-            └── remove_nested_subfolders.py
-        └── prep_preprocessed.py
         └── 📁processing
-            └── 📁__pycache__
-                └── dataloader_ast.cpython-310.pyc
             └── dataloader_ast.py
             └── get_norm_stats.py
             └── progress_monitoring.py
