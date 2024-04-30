@@ -1,3 +1,6 @@
+#  Original Author: Yuan Gong, 2021, Massachusetts Institute of Technology
+#  Edited by: Andrin Fassbind, Fabian Bosshard, 2024, Zurich University of Applied Sciences
+
 import sys
 import os
 import datetime
@@ -119,7 +122,6 @@ def trainmask(audio_model, train_loader, test_loader, args):
                     print("training diverged...")
                     return
 
-            #end_time = time.time()
             global_step += 1
 
             # pretraining data is usually very large, save model every epoch is too sparse.
@@ -174,6 +176,7 @@ def trainmask(audio_model, train_loader, test_loader, args):
             end_time = time.time()
 
         epoch += 1
+
 
 def validatemask(audio_model, val_loader, args, epoch):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

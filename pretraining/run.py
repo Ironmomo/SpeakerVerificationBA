@@ -1,9 +1,5 @@
-# -*- coding: utf-8 -*-
-# @Time    : 6/11/21 12:57 AM
-# @Author  : Yuan Gong
-# @Affiliation  : Massachusetts Institute of Technology
-# @Email   : yuangong@mit.edu
-# @File    : run.py
+#  Original Author: Yuan Gong, 2021, Massachusetts Institute of Technology
+#  Edited by: Andrin Fassbind, Fabian Bosshard, 2024, Zurich University of Applied Sciences
 
 import argparse
 import os
@@ -13,10 +9,11 @@ import sys
 import time
 import torch
 from torch.utils.data import WeightedRandomSampler
-basepath = os.path.dirname(os.path.dirname(sys.path[0]))
-sys.path.append(basepath)
+script_dir = os.path.dirname(__file__) # Get the directory of the script being run (which is in the current directory)
+parent_dir = os.path.dirname(script_dir) # Move up to the parent directory (one level up)
+sys.path.append(parent_dir) # Add the parent directory to sys.path
 import dataloader
-from ast_models import ASTModel
+from ssast_model import ASTModel
 import numpy as np
 from traintest import train, validate
 from traintest_mask import trainmask
@@ -41,7 +38,7 @@ parser.add_argument('--lr', '--learning-rate', default=0.001, type=float, metava
 parser.add_argument('--warmup', help='if use warmup learning rate scheduler', type=ast.literal_eval, default='True')
 parser.add_argument("--optim", type=str, default="adam", help="training optimizer", choices=["sgd", "adam"])
 parser.add_argument('-b', '--batch-size', default=12, type=int, metavar='N', help='mini-batch size')
-parser.add_argument('-w', '--num-workers', default=16, type=int, metavar='NW', help='# of workers for dataloading (default: 32)')
+parser.add_argument('-w', '--num-workers', default=16, type=int, metavar='NW', help='# of workers for dataloading (default: 16)')
 parser.add_argument("--n-epochs", type=int, default=1, help="number of maximum training epochs")
 # only used in pretraining stage or from-scratch fine-tuning experiments
 parser.add_argument("--lr_patience", type=int, default=1, help="how many epoch to wait to reduce lr if mAP doesn't improve")
