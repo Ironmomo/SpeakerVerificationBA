@@ -1,9 +1,5 @@
-# -*- coding: utf-8 -*-
-# @Time    : 6/10/21 11:00 PM
-# @Author  : Yuan Gong
-# @Affiliation  : Massachusetts Institute of Technology
-# @Email   : yuangong@mit.edu
-# @File    : traintest.py
+#  Original Author: Yuan Gong, 2021, Massachusetts Institute of Technology
+#  Edited by: Andrin Fassbind, Fabian Bosshard, 2024, Zurich University of Applied Sciences
 
 import sys
 import os

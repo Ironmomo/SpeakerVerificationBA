@@ -1,3 +1,6 @@
+#  Original Author: Yuan Gong, 2021, Massachusetts Institute of Technology
+#  Edited by: Andrin Fassbind, Fabian Bosshard, 2024, Zurich University of Applied Sciences
+
 import sys
 import os
 import datetime
@@ -81,14 +84,14 @@ def trainmask(audio_model, train_loader, test_loader, args):
                 print('warm-up learning rate is {:f}'.format(optimizer.param_groups[0]['lr']))
 
             # use cluster masking only when masking patches, not frames
-            cluster = (args.num_mel_bins != args.fshape)
+            cluster = (args.num_mel_bins != args.fshape) 
 
             # pretrain_joint
-            acc, loss1 = audio_model(audio_input, 'pretrain_mpc', mask_patch=args.mask_patch, cluster=cluster)
+            acc, loss1 = audio_model(audio_input, 'pretrain_mpc', mask_patch=args.mask_patch, cluster=cluster) # InfoNCE
             acc, loss1 = acc.mean(), loss1.mean()
-            loss2 = audio_model(audio_input, 'pretrain_mpg', mask_patch=args.mask_patch, cluster=cluster)
-            loss2 = loss2.mean()
-            loss = loss1 + 10 * loss2 # InfoNCE + 10 * MSE
+            loss2 = audio_model(audio_input, 'pretrain_mpg', mask_patch=args.mask_patch, cluster=cluster) # MSE
+            loss2 = loss2.mean() 
+            loss = loss1 + 10 * loss2 # InfoNCE + 10 * MSE (equation 3 from SSAST paper)
 
             optimizer.zero_grad()
             loss.backward()
@@ -119,7 +122,6 @@ def trainmask(audio_model, train_loader, test_loader, args):
                     print("training diverged...")
                     return
 
-            #end_time = time.time()
             global_step += 1
 
             # pretraining data is usually very large, save model every epoch is too sparse.
@@ -127,7 +129,7 @@ def trainmask(audio_model, train_loader, test_loader, args):
             epoch_iteration = args.epoch_iter
             if global_step % epoch_iteration == 0:
                 print('---------------- step '+ str(global_step) +' evaluation ----------------')
-                equ_epoch = int(global_step/epoch_iteration) + 1
+                equ_epoch = int(global_step/epoch_iteration) + 1 # => global_step = epoch_iteration * (equ_epoch - 1)
 
                 acc_eval, loss1eval, loss2eval = validatemask(audio_model, test_loader, args, equ_epoch)
 
@@ -174,6 +176,7 @@ def trainmask(audio_model, train_loader, test_loader, args):
             end_time = time.time()
 
         epoch += 1
+
 
 def validatemask(audio_model, val_loader, args, epoch):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

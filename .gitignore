@@ -12,14 +12,19 @@ pretraining/slurm_log
 
 !data/load_data.sh
 
+!data/label_information.csv
+
 
 notes.txt
+
+!plots_and_audios/audios
+
 
 
 *.json
 *.pth
 *.zip
-*.wav
+#*.wav
 *.pyc
 *.flac
 *.DS_Store

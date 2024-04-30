@@ -13,12 +13,12 @@ import numpy as np
 import dataloader_ast
 
 # set skip_norm as True only when you are computing the normalization stats
-audio_conf = {'num_mel_bins': 128, 'target_length': 1024, 'freqm': 24, 'timem': 192, 'mixup': 0.5, 'skip_norm': True, 'mode': 'train', 'dataset': 'audioset_librispeech'}
+audio_conf = {'num_mel_bins': 128, 'target_length': 998, 'freqm': 0, 'timem': 0, 'mixup': 0, 'skip_norm': True, 'mode': 'train', 'dataset': 'audioset_librispeech'}
 
 train_loader = torch.utils.data.DataLoader(
     dataloader_ast.AudiosetDataset('/home/bosfab01/SpeakerVerificationBA/data/audioset2M_librispeech960.json', 
                                    label_csv='/home/bosfab01/SpeakerVerificationBA/data/label_information.csv',
-                                   audio_conf=audio_conf), batch_size=1000, shuffle=False, num_workers=8, pin_memory=True)
+                                   audio_conf=audio_conf), batch_size=1000, shuffle=False, num_workers=32, pin_memory=True)
 mean=[]
 std=[]
 for i, (audio_input, labels) in enumerate(train_loader):
