@@ -5,12 +5,17 @@ import uuid
 from pydub import AudioSegment
 import csv
 from tqdm import tqdm # progress bar
+import json
+import threading
 
 
 """
     This Script is used to preprocess the LibriSpeech dataset. It searches through all *.flac files cuts and pads them to 10s.
     It creates a csv annotation to get the newly created file path and its label (speaker_id).
 """
+
+json_lock = threading.Lock()
+csv_lock = threading.Lock()
 
 def split_and_resample_flac(input_files, output_folder, segment_ms: int = 10000, sample_rate: int = 16000):
 
@@ -61,34 +66,55 @@ def find_audio_files(directory):
         for file_name in files:
             # Check if the file is a regular file is audio file
             file_ending = file_name.split(".")[-1]
-            if os.path.isfile(os.path.join(directory, file_name)) and file_ending.lower() in ["flac", "wav", "aac", "mp3"]:
+            if os.path.isfile(os.path.join(directory, file_name)) and file_ending.lower() in ["flac", "wav", "aac", "mp3", "m4a"]:
                 flac_files.append(os.path.join(directory, file_name))
     return flac_files
 
 
 def add_csv_augmentation(file_name, entries):
-    if not os.path.exists(file_name):
-        
-        with open(file_name, 'w', newline='') as csvfile:
-            csv_writer = csv.writer(csvfile)
-            # Write header
-            csv_writer.writerow(['filename', 'label'])
+    with csv_lock:
+        if not os.path.exists(file_name):
             
-            # Write rows
-            for filename, label in entries:
-                csv_writer.writerow([filename, label])
-    
-    else:
+            with open(file_name, 'w', newline='') as csvfile:
+                csv_writer = csv.writer(csvfile)
+                # Write header
+                csv_writer.writerow(['index','mid','display_name'])
+                
+                # Write rows
+                for idx, (filename, label) in enumerate(entries):
+                    csv_writer.writerow([idx, label, label])
         
-        with open(file_name, 'a', newline='') as csvfile:
-            csv_writer = csv.writer(csvfile)
+        else:
+            
+            with open(file_name, 'a', newline='') as csvfile:
+                csv_writer = csv.writer(csvfile)
 
-            # Write rows
-            for filename, label in entries:
-                csv_writer.writerow([filename, label])
+                # Write rows
+                for idx, (filename, label) in enumerate(entries):
+                    csv_writer.writerow([idx, label, label])
 
 
-def preprocess_speaker(speaker_id, data_path, dest_path, csv_augmentation):
+def add_json_augmentation(json_file, entries):
+    with json_lock:
+        
+        if not os.path.exists(json_file):
+            data = { "data":[] }
+        
+        else:
+            
+            with open(json_file, 'r') as file:
+                data = json.load(file)
+        
+        # Append entrie
+        for filename, label in entries:
+            data['data'].append({"wav": filename, "labels": label})
+        
+        
+        with open(json_file, 'w') as file:
+            json.dump(data, file, indent=4)
+            
+
+def preprocess_speaker(speaker_id, data_path, dest_path, csv_augmentation, json_augmentation):
 
     print(f"Processing speaker {speaker_id}...")
 
@@ -110,7 +136,7 @@ def preprocess_speaker(speaker_id, data_path, dest_path, csv_augmentation):
         # append all flac files from directory to speaker flac files
         if os.path.isdir(cur_file_path):
             speaker_flac_files += find_audio_files(directory=cur_file_path)
-        elif os.path.isfile(cur_file_path) and cur_file_path.split(".")[-1].lower() in ["flac", "wav", "aac", "mp3"]:
+        elif os.path.isfile(cur_file_path) and cur_file_path.split(".")[-1].lower() in ["flac", "wav", "aac", "mp3", "m4a"]:
             speaker_flac_files.append(cur_file_path)
 
     # Split Flac File into segments and resample
@@ -119,21 +145,32 @@ def preprocess_speaker(speaker_id, data_path, dest_path, csv_augmentation):
 
     # add augmentation entrie
     add_csv_augmentation(csv_augmentation, entries)
+    add_json_augmentation(json_augmentation, entries)
 
 
-def preprocess_data(data_path, dest_path, csv_augmentation, max_workers=10):
+def preprocess_data(data_path, dest_path, csv_augmentation, json_augmentation, max_workers=10):
     # Create output folder if it doesn't exist
     os.makedirs(dest_path, exist_ok=True)
     speaker_ids = os.listdir(data_path)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Create all futures first
-        futures = {executor.submit(preprocess_speaker, speaker_id, data_path, dest_path, csv_augmentation): speaker_id for speaker_id in speaker_ids}
+        # Initialize index to track the current position in speaker_ids
+        current_index = 0
 
-        # Process as they complete
-        for future in tqdm(as_completed(futures), total=len(speaker_ids), desc="Processing speakers"):
-            future.result()  # tqdm will update the progress bar automatically.
+        # Loop until all speaker_ids are processed
+        while current_index < len(speaker_ids):
+            # Start max_workers futures
+            futures = []
+            for _ in range(max_workers):
+                if current_index < len(speaker_ids):
+                    speaker_id = speaker_ids[current_index]
+                    future = executor.submit(preprocess_speaker, speaker_id, data_path, dest_path, csv_augmentation, json_augmentation)
+                    futures.append(future)
+                    current_index += 1
 
+            # Wait for the current batch of futures to complete
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Processing speakers"):
+                future.result()  # tqdm will update the progress bar automatically.
 
 
 
@@ -144,16 +181,17 @@ if __name__ == "__main__":
     root_path = os.path.join(os.getcwd(), 'data')
 
     parser = argparse.ArgumentParser(description='Your CLI description here')
-    parser.add_argument('-d', '--dataset', help='Specify the relative Dataset path')
-    parser.add_argument('-n', '--new', help='Specify the relative Folder where to store the preprocessed data and the augmentation.csv')
+    parser.add_argument('-d', '--dataset', help='Specify the dataset path relative to data')
+    parser.add_argument('-n', '--new', help='Specify the destination folder where to store the preprocessed data and the augmentation.csv relative to data')
     args = parser.parse_args()
 
     if args.dataset and args.new:
         
         data_path = os.path.join(root_path, args.dataset)
         new_data_path = os.path.join(root_path, args.new)
-        AUGMENTATION_FILE = os.path.join(new_data_path, 'augmentation.csv')
-        preprocess_data(data_path, new_data_path, AUGMENTATION_FILE)
+        CSV_AUGMENTATION_FILE = os.path.join(new_data_path, 'augmentation.csv')
+        JSON_AUGMENTATION_FILE = os.path.join(new_data_path, 'augmentation.json')
+        preprocess_data(data_path=data_path, dest_path=new_data_path, csv_augmentation=CSV_AUGMENTATION_FILE, json_augmentation=JSON_AUGMENTATION_FILE)
     
     else:
         print('No value provided for dataset and/or new data path')
