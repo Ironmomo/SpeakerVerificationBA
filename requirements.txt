@@ -13,3 +13,4 @@ zipp==3.4.1
 librosa
 pydub
 pandas
+tqdm
