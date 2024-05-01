@@ -40,11 +40,11 @@ timem=0
 # no mixup training
 mixup=0
 
-epoch=5
+epoch=10
 batch_size=48
 
 # shuffle frames in the spectrogram in random order
-shuffle_frames="True"
+shuffle_frames="False"
 # how often should model be evaluated on the validation set and saved
 epoch_iter=4000
 # how often should loss and statistics be printed
