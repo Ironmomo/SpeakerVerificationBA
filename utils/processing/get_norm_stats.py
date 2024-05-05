@@ -1,11 +1,5 @@
-# -*- coding: utf-8 -*-
-# @Time    : 8/4/21 4:30 PM
-# @Author  : Yuan Gong
-# @Affiliation  : Massachusetts Institute of Technology
-# @Email   : yuangong@mit.edu
-# @File    : get_norm_stats.py
-
-# this is a sample code of how to get normalization stats for input spectrogram
+#  Original Authors: Yuan Gong, 2021, Massachusetts Institute of Technology
+#  Edited by: Andrin Fassbind, Fabian Bosshard, 2024, Zurich University of Applied Sciences
 
 import torch
 import numpy as np
