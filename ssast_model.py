@@ -458,6 +458,77 @@ class ASTModel(nn.Module):
         print("folded and transposed shape: ", folded_spectrogram.shape) # [B, 128, 998]
         
         return folded_spectrogram
+
+        # masked patch pretraining with discriminative objective
+    def show_classification_head(self, x, mask_indices):
+
+        mask_patch = len(mask_indices) # N
+        
+        input = self.unfold(x).transpose(1, 2)
+        B = x.shape[0]
+
+        if B > 1:
+            raise Exception('Currently only support single spectrogram probing test.')
+        
+        # x in shape (batch_size, sequence_len, embedding dim)
+        x = self.v.patch_embed(x)
+
+        # encode the patch
+        # size 12(batch_size) * 100(#mask_patch) * 768(hidden_dim), prepare to save the true values of masked samples
+        encode_samples = torch.empty((B, mask_patch, 256), device=x.device, requires_grad=False).float()
+        # size 12(batch_size) * 100(#mask_patch), index of masked patches
+        mask_index = torch.empty((B, mask_patch), device=x.device, requires_grad=False).long()
+        mask_index = mask_indices.unsqueeze(0).expand(B, -1) # shape: [B, N]
+
+        # size 12(batch_size) * 512(sequence_len) * 768(hidden_dim)
+        mask_dense = torch.ones([x.shape[0], x.shape[1], x.shape[2]], device=x.device)
+
+        # for each audio clip in the batch
+        for i in range(B):
+            # copy the masked embeddings, note gradients are stopped in this path
+            encode_samples[i] = input[i, mask_index[i], :].clone().detach()
+            # mask the encode samples with 0
+            mask_dense[i, mask_index[i], :] = 0
+
+        # follow BEIT paper, mask with learnable masking embedding, but no performance diff observed compared with masking with 0s.
+        mask_tokens = self.mask_embed.expand(B, x.shape[1], -1)
+
+        # mask the patch
+        x = x * mask_dense + (1-mask_dense) * mask_tokens
+
+        # pass through the Transformer layers
+        cls_tokens = self.v.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+        dist_token = self.v.dist_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        x = x + self.v.pos_embed
+        x = self.v.pos_drop(x)
+        for blk in self.v.blocks:
+            x = blk(x)
+        x = self.v.norm(x)
+
+        # prediction of the masked patch
+        pred = torch.empty((B, mask_patch, 256), device=x.device).float()  # e.g. size 12*100*768
+        for i in range(B):
+            #  +2 for indexes because skipping the cls and dis token
+            # we map the output of transformer (768-dim for base models) to 256-dim patch input space, and then dot product with flattened patch input (also 256-dim) to calculate loss.
+            # alternatively, you can map the output of transformer to 768-dim patch embedding space, and dot product with patch embedding. Performance-wise they are similar, but map to 256 space is more efficient.
+            pred[i] = self.cpredlayer(x[i, mask_index[i] + self.cls_token_num, :])
+
+        # calculate the NCE loss
+        nce = torch.tensor(0.0).to(x.device)
+        correct = torch.tensor(0.0).to(x.device)
+        for i in np.arange(0, B):
+            # negative samples are from the same batch
+            # 8/12/2022: has a difference with equation (1) in the ssast paper but (likely) performance-wise similar, see https://github.com/YuanGongND/ssast/issues/13
+            total = torch.mm(encode_samples[i], torch.transpose(pred[i], 0, 1))  # e.g. size 100*100
+            print("total shape: ", total.shape) # [100, 100]
+            correct += torch.sum(torch.eq(torch.argmax(self.softmax(total), dim=0), torch.arange(0, mask_patch, device=x.device)))  # correct is a tensor
+            prob = torch.diag(self.softmax(total))
+            nce += torch.sum(torch.diag(self.lsoftmax(total)))  # log softmax
+        acc = 1. * correct / (B * mask_patch)
+        nce = nce / (-1. * B * mask_patch)
+
+        return pred, encode_samples, prob, nce
     
     def finetuningavgtok(self, x):
         # x shape after being passed to finetuningavgtok: [B, 1, 128, 998]
@@ -517,5 +588,7 @@ class ASTModel(nn.Module):
             result = result.transpose(1, 2)
             # now result = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
             return result
+        elif task == 'show_classification_head':
+            return self.show_classification_head(x, mask_indices=mask_indices)
         else:
             raise Exception('Task unrecognized.')
