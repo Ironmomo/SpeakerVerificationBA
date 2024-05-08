@@ -91,8 +91,8 @@ class AudioDataset(Dataset):
             print('now do not shuffle the frames')
             
         # set finetuning
-        self.fintuning = self.audio_conf.get('finetuning')
-        if self.fintuning == True:
+        self.finetuning = self.audio_conf.get('finetuning')
+        if self.finetuning == True:
             print('Is finetuning')
         else:
             print('now not finetuning')
@@ -193,7 +193,7 @@ class AudioDataset(Dataset):
         fbank = self.do_prep_fbank(fbank)
         
         # get interclass file if finetuning
-        if not self.fintuning:
+        if not self.finetuning:
             # the output fbank shape is [time_frame_num, frequency_bins], e.g., [1024, 128]
             return fbank, label_indices
         else:

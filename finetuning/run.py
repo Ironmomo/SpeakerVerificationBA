@@ -63,7 +63,7 @@ parser.add_argument('--model_size', help='the size of AST models', type=str, def
 
 parser.add_argument("--shuffle_frames", help='shuffle the frames in the input spectrogram (default: False)', type=ast.literal_eval, default='False')
 
-parser.add_argument("--task", type=str, default='ft_cls', help="pretraining or fine-tuning task", choices=["ft_avgtok", "ft_cls", "pretrain_mpc", "pretrain_mpg", "pretrain_joint"])
+parser.add_argument("--task", type=str, default='ft_cls', help="pretraining or fine-tuning task", choices=["ft_avgtok", "ft_cls", "pretrain_mpc", "pretrain_mpg", "pretrain_joint", "finetuning_avg"])
 
 # pretraining augments
 #parser.add_argument('--pretrain_stage', help='True for self-supervised pretraining stage, False for fine-tuning stage', type=ast.literal_eval, default='False')
@@ -83,6 +83,9 @@ parser.add_argument("--wa", help='if do weight averaging in finetuning', type=as
 parser.add_argument("--wa_start", type=int, default=16, help="which epoch to start weight averaging in finetuning")
 parser.add_argument("--wa_end", type=int, default=30, help="which epoch to end weight averaging in finetuning")
 parser.add_argument("--loss", type=str, default="BCE", help="the loss function for finetuning, depend on the task", choices=["BCE", "CE"])
+parser.add_argument("--finetuning", type=bool, default=False, help="Set if finetuning should be set", choices=[True, False])
+
+
 
 args = parser.parse_args()
 
@@ -93,10 +96,10 @@ args = parser.parse_args()
 # noise = {'librispeech': False, 'howto100m': False, 'audioset': False, 'esc50': False, 'speechcommands':True}
 
 audio_conf = {'num_mel_bins': args.num_mel_bins, 'target_length': args.target_length, 'freqm': args.freqm, 'timem': args.timem, 'mixup': args.mixup, 'dataset': args.dataset,
-              'mode':'train', 'mean':args.dataset_mean, 'std':args.dataset_std, 'noise':args.noise, 'shuffle_frames':args.shuffle_frames}
+              'mode':'train', 'mean':args.dataset_mean, 'std':args.dataset_std, 'noise':args.noise, 'shuffle_frames':args.shuffle_frames, 'finetuning':args.finetuning}
 
 val_audio_conf = {'num_mel_bins': args.num_mel_bins, 'target_length': args.target_length, 'freqm': 0, 'timem': 0, 'mixup': 0, 'dataset': args.dataset,
-                  'mode': 'evaluation', 'mean': args.dataset_mean, 'std': args.dataset_std, 'noise': False, 'shuffle_frames':args.shuffle_frames}
+                  'mode': 'evaluation', 'mean': args.dataset_mean, 'std': args.dataset_std, 'noise': False, 'shuffle_frames':args.shuffle_frames,'finetuning':args.finetuning}
 
 
 # Balanced??
