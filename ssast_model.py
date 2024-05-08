@@ -517,5 +517,9 @@ class ASTModel(nn.Module):
             result = result.transpose(1, 2)
             # now result = (batch_size, time_frame_num, frequency_bins), e.g., (24, 998, 128)
             return result
+        
+        elif task == 'finetuning_avg':
+            # TODO: calc embeding
+            return self.finetuningavgtok(x)
         else:
             raise Exception('Task unrecognized.')

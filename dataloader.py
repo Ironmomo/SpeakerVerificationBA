@@ -14,10 +14,12 @@ def make_index_dict(label_csv):
     index_lookup = {}
     with open(label_csv, 'r') as f:
         csv_reader = csv.DictReader(f)
-        line_count = 0
+        label_count = 0
         for row in csv_reader:
-            index_lookup[row['mid']] = row['index']
-            line_count += 1
+            label = row['mid']
+            if not label in index_lookup:
+                index_lookup[label] = label_count
+                label_count += 1
     return index_lookup
 
 def make_name_dict(label_csv):
@@ -81,16 +83,24 @@ class AudioDataset(Dataset):
         self.noise = self.audio_conf.get('noise')
         if self.noise == True:
             print('now use noise augmentation')
-
+        # set shuffle
         self.shuffle_frames = self.audio_conf.get('shuffle_frames')
         if self.shuffle_frames == True:
             print('now shuffle the frames')
         else:
             print('now do not shuffle the frames')
-
+            
+        # set finetuning
+        self.fintuning = self.audio_conf.get('finetuning')
+        if self.fintuning == True:
+            print('Is finetuning')
+        else:
+            print('now not finetuning')
+        
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
         print('number of classes is {:d}'.format(self.label_num))
+        
 
     def _wav2fbank(self, filename, filename2=None):
         # mixup
@@ -150,9 +160,10 @@ class AudioDataset(Dataset):
         audio is a FloatTensor of size (N_freq, N_frames) for spectrogram, or (N_frames) for waveform
         nframes is an integer
         """
+        
+        datum = self.data[index]
         # do mix-up for this sample (controlled by the given mixup rate)
         if random.random() < self.mixup:
-            datum = self.data[index]
             # find another sample to mix, also do balance sampling
             # sample the other sample from the multinomial distribution, will make the performance worse
             # mix_sample_idx = np.random.choice(len(self.data), p=self.sample_weight_file)
@@ -172,7 +183,6 @@ class AudioDataset(Dataset):
             label_indices = torch.FloatTensor(label_indices)
         # if not do mixup
         else:
-            datum = self.data[index]
             label_indices = np.zeros(self.label_num)
             fbank, mix_lambda = self._wav2fbank(datum['wav'])
             for label_str in datum['labels'].split(','):
@@ -180,7 +190,26 @@ class AudioDataset(Dataset):
 
             label_indices = torch.FloatTensor(label_indices)
 
-        # SpecAug, not do for eval set
+        fbank = self.do_prep_fbank(fbank)
+        
+        # get interclass file if finetuning
+        if not self.fintuning:
+            # the output fbank shape is [time_frame_num, frequency_bins], e.g., [1024, 128]
+            return fbank, label_indices
+        else:
+            # get random index of interclass sample
+            rnd_idx = self.get_random_interclass_index(datum['labels'], index)
+            datum2 = self.data[rnd_idx]
+            # get fbank
+            fbank2, mix_lambda2 = self._wav2fbank(datum2['wav'])
+            # prepare fbank
+            fbank2 = self.do_prep_fbank(fbank2)
+            # return fbank, fbank2, label_indices
+            return fbank, fbank2, label_indices
+
+
+    def do_prep_fbank(self, fbank):
+            # SpecAug, not do for eval set
         freqm = torchaudio.transforms.FrequencyMasking(self.freqm)
         timem = torchaudio.transforms.TimeMasking(self.timem)
         fbank = torch.transpose(fbank, 0, 1)
@@ -208,9 +237,23 @@ class AudioDataset(Dataset):
         # shuffle the frames in the spectrogram randomly
         if self.shuffle_frames == True:
             fbank = fbank[torch.randperm(fbank.size(0))] # torch.randperm(fbank.size(0)) = torch.randperm(998) = tensor([  513, 234, 754, ...])
+        return fbank
 
-        # the output fbank shape is [time_frame_num, frequency_bins], e.g., [1024, 128]
-        return fbank, label_indices
+
+    def get_random_interclass_index(self, label, cur_idx):
+        
+        # get index from json ...
+        start_idx, end_idx = self.data[cur_idx]["interclass_idxs"]
+        
+        rnd_idx = random.randint(start_idx, end_idx)
+        max_iter = 5
+        cur_iter = 0
+        while rnd_idx == cur_idx and cur_iter < max_iter:
+            rnd_idx = random.randint(start_idx, end_idx)
+            cur_iter += 1
+        return rnd_idx
+        
+        
 
     def __len__(self):
         return len(self.data)
