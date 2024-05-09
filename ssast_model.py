@@ -155,8 +155,7 @@ class ASTModel(nn.Module):
             self.cls_token_num = audio_model.module.cls_token_num
 
             # mlp head for fine-tuning
-            self.mlp_head = nn.Sequential(nn.LayerNorm(self.original_embedding_dim),
-                                          nn.Linear(self.original_embedding_dim, label_dim))
+            self.mlp_head = nn.Sequential(nn.LayerNorm(self.original_embedding_dim), nn.Linear(self.original_embedding_dim, label_dim))
 
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim, fshape, tshape)
             # patch array dimension during pretraining
@@ -330,7 +329,7 @@ class ASTModel(nn.Module):
         return acc, nce
 
 
-    # # masked patch pretraining with generative objective
+    # masked patch pretraining with generative objective
     def mpg(self, input, mask_patch, cluster):
         # input shape: [B, 1, 128, 998]
         B = input.shape[0]
@@ -459,7 +458,6 @@ class ASTModel(nn.Module):
         
         return folded_spectrogram
 
-        # masked patch pretraining with discriminative objective
     def show_classification_head(self, x, mask_indices):
 
         mask_patch = len(mask_indices) # N
