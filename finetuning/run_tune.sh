@@ -17,7 +17,6 @@ mask_patch=390 # 390 would be more similar to original paper (because we habe 99
 
 dataset=asli # audioset and librispeech
 tr_data=$SCRIPT_DIR/../data/prep/augmentation.json
-te_data=$SCRIPT_DIR/../data/prep/augmentation.json
 dataset_mean=-5.0716844 
 dataset_std=4.386603
 target_length=998 # (10000ms - (25ms - 10ms)) // 10ms = 998
@@ -40,7 +39,7 @@ timem=0
 # no mixup training
 mixup=0
 
-epoch=2
+epoch=200
 batch_size=24
 
 # shuffle frames in the spectrogram in random order
@@ -59,13 +58,13 @@ pretrained_model=/home/fassband/ba/SpeakerVerificationBA/pretraining/exp/pretrai
 # Create the experiment directory
 current_time=$(date "+%Y%m%d-%H%M%S")
 if [[ $shuffle_frames == "True" ]]; then
-    exp_dir=$SCRIPT_DIR/exp/pretrained-${current_time}-shuffled-${model_size}-f${fshape}-t${tshape}-b$batch_size-lr${lr}-m${mask_patch}-${task}-${dataset}
+    exp_dir=$SCRIPT_DIR/exp/finetuned-${current_time}-shuffled-${model_size}-f${fshape}-t${tshape}-b$batch_size-lr${lr}-m${mask_patch}-${task}-${dataset}
 else
-    exp_dir=$SCRIPT_DIR/exp/pretrained-${current_time}-original-${model_size}-f${fshape}-t${tshape}-b$batch_size-lr${lr}-m${mask_patch}-${task}-${dataset}
+    exp_dir=$SCRIPT_DIR/exp/finetuned-${current_time}-original-${model_size}-f${fshape}-t${tshape}-b$batch_size-lr${lr}-m${mask_patch}-${task}-${dataset}
 fi
 
 CUDA_CACHE_DISABLE=1 python3 -W ignore finetuning/run.py --dataset ${dataset} \
---data-train ${tr_data} --data-val ${te_data} --exp-dir $exp_dir \
+--data-train ${tr_data} --exp-dir $exp_dir \
 --label-csv $SCRIPT_DIR/../data/prep/augmentation.csv \
 --lr $lr --n-epochs ${epoch} --batch-size $batch_size --save_model True \
 --freqm $freqm --timem $timem --mixup ${mixup} --bal ${bal} \

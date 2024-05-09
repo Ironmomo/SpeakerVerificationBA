@@ -21,11 +21,11 @@ def train(audio_model, train_loader, test_loader, args):
     per_sample_time = AverageMeter()
     data_time = AverageMeter()
     per_sample_data_time = AverageMeter()
-    loss_meter = AverageMeter()
+    train_loss_meter = AverageMeter()
+    test_loss_meter = AverageMeter()
     per_sample_dnn_time = AverageMeter()
-    train_acc_meter = AverageMeter()
     progress = []
-    best_epoch, best_acc = 0, -np.inf
+    best_epoch, best_loss = 0, np.inf
     global_step, epoch = 0, 0
     start_time = time.time()
     exp_dir = args.exp_dir
@@ -56,6 +56,7 @@ def train(audio_model, train_loader, test_loader, args):
     print("current #steps=%s, #epochs=%s" % (global_step, epoch))
     print("start training...")
 
+    result = []
     audio_model.train()
 
     # training until break
@@ -68,6 +69,7 @@ def train(audio_model, train_loader, test_loader, args):
         # save from-scratch models before the first epoch
         torch.save(audio_model.state_dict(), "%s/models/audio_model.%d.pth" % (exp_dir, global_step+1))
 
+        # batch loop
         for i, (audio_input, audio_input_two, label) in enumerate(train_loader):
             # measure data loading time
             B = audio_input.size(0) # batch size
@@ -88,24 +90,24 @@ def train(audio_model, train_loader, test_loader, args):
             cluster = (args.num_mel_bins != args.fshape) 
 
             # calc embedding
-            # TODO: Change Task argument
             output_anchor = audio_model(audio_input, 'finetuning_avg', mask_patch=args.mask_patch, cluster=cluster)
             output_two = audio_model(audio_input_two, 'finetuning_avg', mask_patch=args.mask_patch, cluster=cluster)
 
             # calc loss
             losses = []
             
-            for anchor_idx in range(len(output_anchor)):
+            for anchor_idx in range(B):
                 anchor = output_anchor[anchor_idx]
-                for two_idx in range(len(output_two)):
-                    if two_idx != anchor_idx:
+                for two_idx in range(B):
+                    are_same_speaker = torch.equal(label[anchor_idx], label[two_idx])
+                    if two_idx != anchor_idx and not are_same_speaker:
                         loss = loss_fn(anchor, output_two[anchor_idx], output_two[two_idx])
                         losses.append(loss)
             
             # Convert the list of losses to a tensor
             loss_tensor = torch.stack(losses)        
                     
-            loss_sum = loss_tensor.sum()
+            loss_sum = loss_tensor.sum() / len(losses)
 
             optimizer.zero_grad()
             loss_sum.backward()
@@ -114,8 +116,7 @@ def train(audio_model, train_loader, test_loader, args):
             scheduler.step()
 
             # record loss
-            #train_acc_meter.update(acc.detach().cpu().item())
-            loss_meter.update(loss.item(), B)
+            train_loss_meter.update(loss_sum.item(), B)
             batch_time.update(time.time() - end_time)
             per_sample_time.update((time.time() - end_time) / B)
             per_sample_dnn_time.update((time.time() - dnn_start_time) / B)
@@ -129,13 +130,18 @@ def train(audio_model, train_loader, test_loader, args):
                   'Per Sample Total Time {per_sample_time.avg:.5f}\t'
                   'Per Sample Data Time {per_sample_data_time.avg:.5f}\t'
                   'Per Sample DNN Time {per_sample_dnn_time.avg:.5f}\t'
-                  'Train Loss {loss_meter.val:.4f}\t'.format(
+                  'Train Loss {train_loss_meter.val:.4f}\t'
+                  'Train Loss Avg {train_loss_meter.avg:.4f}\t'
+                  .format(
                    epoch, i, len(train_loader), per_sample_time=per_sample_time, per_sample_data_time=per_sample_data_time,
-                      per_sample_dnn_time=per_sample_dnn_time, loss_meter=loss_meter), flush=True)
-                if np.isnan(loss_meter.avg):
+                      per_sample_dnn_time=per_sample_dnn_time, train_loss_meter=train_loss_meter), flush=True)
+                if np.isnan(train_loss_meter.avg):
                     print("training diverged...")
                     return
 
+                result.append([train_loss_meter.avg, test_loss_meter.avg, optimizer.param_groups[0]['lr']])
+                np.savetxt(exp_dir + '/result.csv', result, delimiter=',')
+                
             global_step += 1
 
             # save the model every args.epoch_iter steps.
@@ -145,29 +151,39 @@ def train(audio_model, train_loader, test_loader, args):
                 equ_epoch = int(global_step/epoch_iteration) + 1 # => global_step = epoch_iteration * (equ_epoch - 1)
 
                 # Evaluate
+                test_loss = validate(audio_model=audio_model, val_loader=test_loader, args=args)
+                
+                test_loss_meter.update(test_loss)
+                        
                 # Check if best model
-                #torch.save(audio_model.state_dict(), "%s/models/best_audio_model.pth" % (exp_dir))
+                if test_loss < best_loss:
+                    best_loss = test_loss
+                    best_epoch = epoch
+                    torch.save(audio_model.state_dict(), "%s/models/best_audio_model.pth" % (exp_dir))
 
                 torch.save(audio_model.state_dict(), "%s/models/audio_model.%d.pth" % (exp_dir, equ_epoch))
                 if len(train_loader.dataset) > 2e5:
                     torch.save(optimizer.state_dict(), "%s/models/optim_state.pth" % (exp_dir)) # save optimizer state
 
-                #scheduler.step(acc_eval)
 
-                #print('# {:d}, step {:d}-{:d}, lr: {:e}'.format(equ_epoch, global_step-epoch_iteration, global_step, optimizer.param_groups[0]['lr']))
-
+                print('EVALUATION - Epoch: [{0}]\t'
+                    'Test Loss val {test_loss:.4f}\t'
+                  'Test Loss val {test_loss_meter.val:.4f}\t'
+                  'Test Loss Avg {test_loss_meter.avg:.4f}\t'
+                  .format(
+                   epoch, test_loss= test_loss, test_loss_meter=test_loss_meter), flush=True)
+                
                 _save_progress()
 
                 finish_time = time.time()
                 print('# {:d}, step {:d}-{:d}, training time: {:.3f}'.format(equ_epoch, global_step-epoch_iteration, global_step, finish_time-begin_time))
                 begin_time = time.time()
 
-                train_acc_meter.reset()
                 batch_time.reset()
                 per_sample_time.reset()
                 data_time.reset()
                 per_sample_data_time.reset()
-                loss_meter.reset()
+                train_loss_meter.reset()
                 per_sample_dnn_time.reset()
 
                 # change the models back to train mode
@@ -175,38 +191,66 @@ def train(audio_model, train_loader, test_loader, args):
                 print('---------------- evaluation finished ----------------')
 
             end_time = time.time()
+            
+        # Evaluate
+        test_loss = validate(audio_model=audio_model, val_loader=test_loader, args=args)
+        
+        test_loss_meter.update(test_loss)
+        
+        print('EVALUATION - Epoch: [{0}]\t'
+                  'Test Loss val {test_loss_meter.val:.4f}\t'
+                  'Test Loss Avg {test_loss_meter.avg:.4f}\t'
+                  .format(
+                   epoch, test_loss_meter=test_loss_meter), flush=True)
 
         epoch += 1
 
 
-def validate(audio_model, val_loader, args, epoch):
+def validate(audio_model, val_loader, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    test_loss_meter = AverageMeter()
+    
+    # Loss function
+    loss_fn = nn.TripletMarginLoss()
+    
     if not isinstance(audio_model, nn.DataParallel):
         audio_model = nn.DataParallel(audio_model)
     audio_model = audio_model.to(device)
     # switch to evaluate mode
     audio_model.eval()
-
-    A_accv = []
-    A_loss1v = [] # InfoNCE
-    A_loss2v = [] # MSE
+    
     with torch.no_grad():
-        for i, (audio_input, _) in enumerate(val_loader):
+        for i, (audio_input, audio_input_two, label) in enumerate(val_loader):
+
             audio_input = audio_input.to(device)
+            audio_input_two = audio_input_two.to(device)
+            label = label.to(device)
 
             # use cluster masking only when masking patches, not frames
             cluster = (args.num_mel_bins != args.fshape)
+            
+            # calc embedding
+            output_anchor = audio_model(audio_input, 'finetuning_avg', mask_patch=args.mask_patch, cluster=cluster)
+            output_two = audio_model(audio_input_two, 'finetuning_avg', mask_patch=args.mask_patch, cluster=cluster)
 
-            # always use mask_patch=400 for evaluation, even the training mask patch number differs.
-            acc, loss1v = audio_model(audio_input, 'pretrain_mpc', mask_patch=400, cluster=cluster)
-            loss2v = audio_model(audio_input, 'pretrain_mpg', mask_patch=400, cluster=cluster)
+            # calc loss
+            losses = []
+            
+            for anchor_idx in range(len(output_anchor)):
+                anchor = output_anchor[anchor_idx]
+                for two_idx in range(len(output_two)):
+                    are_same_speaker = torch.equal(label[anchor_idx], label[two_idx])
+                    if two_idx != anchor_idx and not are_same_speaker:
+                        loss = loss_fn(anchor, output_two[anchor_idx], output_two[two_idx])
+                        losses.append(loss)
+            
+            # Convert the list of losses to a tensor
+            loss_tensor = torch.stack(losses)        
+                    
+            loss_sum = loss_tensor.sum() / len(losses)
+            
+            test_loss_meter.update(loss_sum.item())
+            
 
-            A_accv.append(torch.mean(acc).cpu())
-            A_loss1v.append(torch.mean(loss1v).cpu())
-            A_loss2v.append(torch.mean(loss2v).cpu())
-
-        acc = np.mean(A_accv)
-        loss1v = np.mean(A_loss1v)
-        loss2v = np.mean(A_loss2v)
-
-    return acc, loss1v, loss2v
+    return test_loss_meter.avg

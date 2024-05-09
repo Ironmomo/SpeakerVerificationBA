@@ -8,7 +8,7 @@ import pickle
 import sys
 import time
 import torch
-from torch.utils.data import WeightedRandomSampler
+from torch.utils.data import random_split, RandomSampler, SequentialSampler
 script_dir = os.path.dirname(__file__) # Get the directory of the script being run (which is in the current directory)
 parent_dir = os.path.dirname(script_dir) # Move up to the parent directory (one level up)
 sys.path.append(parent_dir) # Add the parent directory to sys.path
@@ -21,8 +21,6 @@ print("I am process %s, running on %s: starting (%s)" % (os.getpid(), os.uname()
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--data-train", type=str, default=None, help="training data json")
-parser.add_argument("--data-val", type=str, default=None, help="validation data json")
-parser.add_argument("--data-eval", type=str, default=None, help="evaluation data json")
 parser.add_argument("--label-csv", type=str, default='', help="csv with class labels")
 parser.add_argument("--n_class", type=int, default=527, help="number of classes")
 
@@ -98,22 +96,21 @@ args = parser.parse_args()
 audio_conf = {'num_mel_bins': args.num_mel_bins, 'target_length': args.target_length, 'freqm': args.freqm, 'timem': args.timem, 'mixup': args.mixup, 'dataset': args.dataset,
               'mode':'train', 'mean':args.dataset_mean, 'std':args.dataset_std, 'noise':args.noise, 'shuffle_frames':args.shuffle_frames, 'finetuning':args.finetuning}
 
-val_audio_conf = {'num_mel_bins': args.num_mel_bins, 'target_length': args.target_length, 'freqm': 0, 'timem': 0, 'mixup': 0, 'dataset': args.dataset,
-                  'mode': 'evaluation', 'mean': args.dataset_mean, 'std': args.dataset_std, 'noise': False, 'shuffle_frames':args.shuffle_frames,'finetuning':args.finetuning}
-
-
-# Balanced??
 
 # Init Dataloader
+dataset = dataloader.AudioDataset(args.data_train, label_csv=args.label_csv, audio_conf=audio_conf)
+
+train_data, test_data = random_split(dataset, (0.8, 0.2))
+
 train_loader = torch.utils.data.DataLoader(
-    dataloader.AudioDataset(args.data_train, label_csv=args.label_csv, audio_conf=audio_conf),
+    train_data,
     batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=False, drop_last=True) # shuffle (bool, optional) – set to True to have the data reshuffled at every epoch (default: False).
 
-val_loader = torch.utils.data.DataLoader(
-    dataloader.AudioDataset(args.data_val, label_csv=args.label_csv, audio_conf=val_audio_conf),
-    batch_size=args.batch_size * 2, shuffle=False, num_workers=args.num_workers, pin_memory=False)
+test_loader = torch.utils.data.DataLoader(
+    test_data,
+    batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=False)
 
-print('Now train with {:s} with {:d} training samples, evaluate with {:d} samples'.format(args.dataset, len(train_loader.dataset), len(val_loader.dataset)))
+print('Now train with {:s} with {:d} training samples, evaluate with {:d} samples'.format(args.dataset, len(train_loader.dataset), len(test_loader.dataset)))
 
 # Init model
 audio_model = ASTModel(label_dim=args.n_class, fshape=args.fshape, tshape=args.tshape, fstride=args.fstride, tstride=args.tstride,
@@ -132,35 +129,4 @@ with open("%s/args.pkl" % args.exp_dir, "wb") as f:
 
 # Training
 print('Now starting fine-tuning for {:d} epochs'.format(args.n_epochs))
-train(audio_model, train_loader, val_loader, args) # fine-tuning
-
-# if the dataset has a seperate evaluation set (e.g., speechcommands), then select the model using the validation set and eval on the evaluation set.
-if args.data_eval != None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    sd = torch.load(args.exp_dir + '/models/best_audio_model.pth', map_location=device)
-    if not isinstance(audio_model, torch.nn.DataParallel):
-        audio_model = torch.nn.DataParallel(audio_model)
-    audio_model.load_state_dict(sd, strict=False)
-
-    # best models on the validation set
-    args.loss_fn = torch.nn.BCEWithLogitsLoss()
-    stats, _ = validate(audio_model, val_loader, args, 'valid_set')
-    # note it is NOT mean of class-wise accuracy
-    val_acc = stats[0]['acc']
-    val_mAUC = np.mean([stat['auc'] for stat in stats])
-    print('---------------evaluate on the validation set---------------')
-    print("Accuracy: {:.6f}".format(val_acc))
-    print("AUC: {:.6f}".format(val_mAUC))
-
-    # test the models on the evaluation set
-    eval_loader = torch.utils.data.DataLoader(
-        dataloader.AudioDataset(args.data_eval, label_csv=args.label_csv, audio_conf=val_audio_conf),
-        batch_size=args.batch_size*2, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-    stats, _ = validate(audio_model, eval_loader, args, 'eval_set')
-    eval_acc = stats[0]['acc']
-    eval_mAUC = np.mean([stat['auc'] for stat in stats])
-    print('---------------evaluate on the test set---------------')
-    print("Accuracy: {:.6f}".format(eval_acc))
-    print("AUC: {:.6f}".format(eval_mAUC))
-    np.savetxt(args.exp_dir + '/eval_result.csv', [val_acc, val_mAUC, eval_acc, eval_mAUC])
-
+train(audio_model, train_loader, test_loader, args) # fine-tuning
