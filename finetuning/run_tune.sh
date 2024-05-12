@@ -16,9 +16,10 @@ task=finetuning_avg
 mask_patch=390 # 390 would be more similar to original paper (because we habe 998 instead of 1024 targetlength)
 
 dataset=asli # audioset and librispeech
-tr_data=$SCRIPT_DIR/../data/prep/augmentation.json
-dataset_mean=-5.0716844 
-dataset_std=4.386603
+tr_data=$SCRIPT_DIR/../data/finetuning/augmentation.json
+label_csv=$SCRIPT_DIR/../data/finetuning/augmentation.csv
+dataset_mean=-6.5975285
+dataset_std=3.6734943
 target_length=998 # (10000ms - (25ms - 10ms)) // 10ms = 998
 num_mel_bins=128
 
@@ -39,15 +40,15 @@ timem=0
 # no mixup training
 mixup=0
 
-epoch=200
-batch_size=24
+epoch=10
+batch_size=48
 
 # shuffle frames in the spectrogram in random order
 shuffle_frames="False"
 # how often should model be evaluated on the validation set and saved
-epoch_iter=4000
+epoch_iter=1000
 # how often should loss and statistics be printed
-n_print_steps=1
+n_print_steps=100
 
 # set pretrained model
 pretrained_model=/home/fassband/ba/SpeakerVerificationBA/pretraining/exp/pretrained-20240501-162648-original-base-f128-t2-b48-lr1e-4-m390-pretrain_joint-asli/models/best_audio_model.pth
@@ -65,7 +66,7 @@ fi
 
 CUDA_CACHE_DISABLE=1 python3 -W ignore finetuning/run.py --dataset ${dataset} \
 --data-train ${tr_data} --exp-dir $exp_dir \
---label-csv $SCRIPT_DIR/../data/prep/augmentation.csv \
+--label-csv ${label_csv} \
 --lr $lr --n-epochs ${epoch} --batch-size $batch_size --save_model True \
 --freqm $freqm --timem $timem --mixup ${mixup} --bal ${bal} \
 --tstride $tstride --fstride $fstride --fshape ${fshape} --tshape ${tshape} \

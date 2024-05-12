@@ -10,8 +10,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 fintune = True
 
-json_f = "/home/fassband/ba/SpeakerVerificationBA/data/prep/augmentation.json"
-csv_f = "/home/fassband/ba/SpeakerVerificationBA/data/prep/augmentation.csv"
+json_f = "/home/fassband/ba/SpeakerVerificationBA/data/finetuning/augmentation.json"
+csv_f = "/home/fassband/ba/SpeakerVerificationBA/data/finetuning/augmentation.csv"
 audio_conf = {
             'num_mel_bins': 128,
             'target_length': 1024,
@@ -41,14 +41,23 @@ train_loader = torch.utils.data.DataLoader(
 # Create an iterator from the DataLoader
 data_iterator = iter(train_loader)
 
+files = []
+
 if fintune:
-    # Fetch the first batch
-    audio_input1, audio_input2, labels = next(data_iterator)
-    audio_input1, audio_input2, labels = audio_input1.to(device), audio_input2.to(device), labels.to(device)
-    # Print out the details to see what the batch contains
-    print("Audio input shape:", audio_input1.shape)
-    print("Audio input 2 shape:", audio_input2.shape)
-    print("Labels shape:", labels.shape)
+    
+    for i, (audio_input1, audio_input2, labels, file, file2) in enumerate(train_loader):
+
+        audio_input1, audio_input2, labels = audio_input1.to(device), audio_input2.to(device), labels.to(device)
+        for f in files:
+            for fi in file:
+                if f == fi:
+                    print("ALLREADY EXISTS")
+                    raise Exception("ALLREADY EXISTS")
+        files.extend(file)
+        # Print out the details to see what the batch contains
+
+    
+    print(len(files))
 else:
         # Fetch the first batch
     audio_input1, labels = next(data_iterator)

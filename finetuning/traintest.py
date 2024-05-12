@@ -39,6 +39,10 @@ def train(audio_model, train_loader, test_loader, args):
         audio_model = nn.DataParallel(audio_model)
 
     audio_model = audio_model.to(device)
+    
+    # save from-scratch models before the first epoch
+    torch.save(audio_model.state_dict(), "%s/models/audio_model.%d.pth" % (exp_dir, global_step+1))
+    
     # Set up the optimizer
     audio_trainables = [p for p in audio_model.parameters() if p.requires_grad]
     print('Total parameter number is : {:.9f} million'.format(sum(p.numel() for p in audio_model.parameters()) / 1e6))
@@ -65,9 +69,6 @@ def train(audio_model, train_loader, test_loader, args):
         end_time = time.time()
         audio_model.train()
         print(datetime.datetime.now())
-
-        # save from-scratch models before the first epoch
-        torch.save(audio_model.state_dict(), "%s/models/audio_model.%d.pth" % (exp_dir, global_step+1))
 
         # batch loop
         for i, (audio_input, audio_input_two, label) in enumerate(train_loader):

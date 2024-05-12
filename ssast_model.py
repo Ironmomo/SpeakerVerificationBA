@@ -47,7 +47,7 @@ class ASTModel(nn.Module):
     def __init__(self, label_dim=527,
                  fshape=128, tshape=2, fstride=128, tstride=2,
                  input_fdim=128, input_tdim=1024, model_size='base',
-                 pretrain_stage=True, load_pretrained_mdl_path=None):
+                 pretrain_stage=True, load_pretrained_mdl_path=None, finetune=False):
 
         super(ASTModel, self).__init__()
         #assert timm.__version__ == '0.4.5', 'Please use timm == 0.4.5, the code might not be compatible with newer versions.'
@@ -129,17 +129,21 @@ class ASTModel(nn.Module):
 
         # use a pretrained models for finetuning
         elif pretrain_stage == False:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if load_pretrained_mdl_path == None:
                 raise ValueError('Please set load_pretrained_mdl_path to load a pretrained models.')
-            sd = torch.load(load_pretrained_mdl_path, map_location=device)
+            sd = torch.load(load_pretrained_mdl_path)
             # get the fshape and tshape, input_fdim and input_tdim in the pretraining stage
             try:
                 p_fshape, p_tshape = sd['module.v.patch_embed.proj.weight'].shape[2], sd['module.v.patch_embed.proj.weight'].shape[3]
                 p_input_fdim, p_input_tdim = sd['module.p_input_fdim'].item(), sd['module.p_input_tdim'].item()
             except:
-                raise  ValueError('The model loaded is not from a torch.nn.Dataparallel object. Wrap it with torch.nn.Dataparallel and try again.')
-
+                #raise  ValueError('The model loaded is not from a torch.nn.Dataparallel object. Wrap it with torch.nn.Dataparallel and try again.')
+                p_fshape = fshape
+                p_tshape = tshape
+                p_input_fdim = input_fdim
+                p_input_tdim = input_tdim
+                
             print('now load a SSL pretrained models from ' + load_pretrained_mdl_path)
             # during pretraining, fstride=fshape and tstride=tshape because no patch overlapping is used
             # here, input_fdim and input_tdim should be that used in pretraining, not that in the fine-tuning.
