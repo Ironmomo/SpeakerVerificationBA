@@ -54,7 +54,7 @@ n_print_steps=100
 
 # set pretrained model
 #pretrained_model='/home/fassband/ba/SpeakerVerificationBA/pretraining/exp/pretrained-20240501-162648-original-base-f128-t2-b48-lr1e-4-m390-pretrain_joint-asli/models/best_audio_model.pth'
-pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240510-160543-original-base-f128-t2-b48-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
+pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240514-111049-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
 
 num_workers = 16
 
@@ -101,6 +101,7 @@ def get_embeddings(model, dataloader):
     return embeddings, label_embeddings
 
 def calc_distance(v1, v2):
+
     #dist = torch.norm(v1 - v2).item()
     dist = F.cosine_similarity(v1,v2, dim=0).item()
     return dist
@@ -116,7 +117,7 @@ def get_classification(embeddings, labels, treshold):
         for v2_idx in range(len(embeddings)):
             if v1_idx != v2_idx:
                 # Model classify as negative
-                if calc_distance(embeddings[v1_idx], embeddings[v2_idx]) > treshold:
+                if calc_distance(embeddings[v1_idx], embeddings[v2_idx]) < treshold:
                     # Embeddings are positive
                     if torch.equal(labels[v1_idx], labels[v2_idx]):
                         false_negative += 1
@@ -143,10 +144,11 @@ def eer_plot(model, dataloader):
     t_list  = []
     acc_list = []
     best_t = 0
+    val_best_t = 100
     closest = float('inf')
     
     print("Check treshold")
-    for t in np.arange(0., 1., 0.01):
+    for t in np.arange(0.0, 1.01, 0.01):
         tp, tn, fp, fn = get_classification(embeddings, labels, t)
         fp_list.append((fp / (tp + tn + fp + fn)) * 100)
         fn_list.append((fn / (tp + tn + fp + fn)) * 100)
@@ -154,15 +156,18 @@ def eer_plot(model, dataloader):
 
         if abs(fp - fn) < closest:
             best_t = t
-            closest = fp - fn
+            val_best_t = min(fp,fn)
+            closest = abs(fp - fn)
         acc = (tp + tn) / (tp + tn + fp + fn) * 100
         acc_list.append(acc)
     
     print(f'Best Treshold: {best_t}')
+    print(f'Best Treshold EER: {val_best_t}')
+    print(f"Best Accuracy: {max(acc_list)}")
         
     plt.figure()
     plt.plot(t_list, fp_list, label='False Positive')
-    plt.plot(t_list, fn_list, label='Flase Negative')
+    plt.plot(t_list, fn_list, label='False Negative')
     plt.xlabel('Treshold')
     plt.ylabel('Error Rate in %')
     plt.title('EER - Equal Error Rate')
@@ -171,7 +176,7 @@ def eer_plot(model, dataloader):
     
     plt.figure()
     plt.plot(t_list, acc_list)
-    plt.xlabel('Treshold')
+    plt.xlabel('Cosine Similarity - Treshold')
     plt.ylabel('Accuracy in %')
     plt.title('Accuracy')
     plt.show()

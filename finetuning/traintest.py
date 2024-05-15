@@ -55,7 +55,7 @@ def train(audio_model, train_loader, test_loader, args):
     epoch += 1
 
     # Loss function
-    loss_fn = nn.TripletMarginLoss()
+    loss_fn = nn.CosineEmbeddingLoss()
 
     print("current #steps=%s, #epochs=%s" % (global_step, epoch))
     print("start training...")
@@ -75,6 +75,7 @@ def train(audio_model, train_loader, test_loader, args):
             # measure data loading time
             B = audio_input.size(0) # batch size
             audio_input = audio_input.to(device, non_blocking=True)
+            audio_input_two = audio_input_two.to(device)
 
             data_time.update(time.time() - end_time)
             per_sample_data_time.update((time.time() - end_time) / B)
@@ -95,20 +96,29 @@ def train(audio_model, train_loader, test_loader, args):
             output_two = audio_model(audio_input_two, 'finetuning_avg', mask_patch=args.mask_patch, cluster=cluster)
 
             # calc loss
-            losses = []
+            target_pos = torch.ones(B).to(device)
+            loss_pos = loss_fn(output_anchor, output_two, target_pos)
+            # shuffle two
+            perm = torch.randperm(B)
+            output_two_shuffle = output_two[perm]
+            output_two_shuffle = output_two_shuffle.to(device)
             
-            for anchor_idx in range(B):
-                anchor = output_anchor[anchor_idx]
-                for two_idx in range(B):
-                    are_same_speaker = torch.equal(label[anchor_idx], label[two_idx])
-                    if two_idx != anchor_idx and not are_same_speaker:
-                        loss = loss_fn(anchor, output_two[anchor_idx], output_two[two_idx])
-                        losses.append(loss)
+            label_shuffle = label[perm]
+            # Check if tensors are equal element-wise
+            equal_mask = torch.eq(label, label_shuffle)
+        
+            # Convert boolean mask to 1s and 0s
+            equal_mask = equal_mask.float()
+
+            # Sum along the second dimension to get a [B, 1] mask
+            equal_mask = torch.sum(equal_mask, dim=1, keepdim=True)
+            target_neg = torch.where(equal_mask == label.size(1), torch.ones_like(equal_mask), -torch.ones_like(equal_mask))
+            target_neg = torch.squeeze(target_neg).to(device)
+        
             
-            # Convert the list of losses to a tensor
-            loss_tensor = torch.stack(losses)        
-                    
-            loss_sum = loss_tensor.sum() / len(losses)
+            loss_neg = loss_fn(output_anchor, output_two_shuffle, target_neg)
+            
+            loss_sum = loss_pos + loss_neg
 
             optimizer.zero_grad()
             loss_sum.backward()
@@ -213,7 +223,7 @@ def validate(audio_model, val_loader, args):
     test_loss_meter = AverageMeter()
     
     # Loss function
-    loss_fn = nn.TripletMarginLoss()
+    loss_fn = nn.CosineEmbeddingLoss()
     
     if not isinstance(audio_model, nn.DataParallel):
         audio_model = nn.DataParallel(audio_model)
@@ -223,7 +233,8 @@ def validate(audio_model, val_loader, args):
     
     with torch.no_grad():
         for i, (audio_input, audio_input_two, label) in enumerate(val_loader):
-
+            B = audio_input.size(0) # batch size
+            
             audio_input = audio_input.to(device)
             audio_input_two = audio_input_two.to(device)
             label = label.to(device)
@@ -236,21 +247,29 @@ def validate(audio_model, val_loader, args):
             output_two = audio_model(audio_input_two, 'finetuning_avg', mask_patch=args.mask_patch, cluster=cluster)
 
             # calc loss
-            losses = []
+            target_pos = torch.ones(B).to(device)
+            loss_pos = loss_fn(output_anchor, output_two, target_pos)
+            # shuffle two
+            perm = torch.randperm(B)
+            output_two_shuffle = output_two[perm]
+            output_two_shuffle = output_two_shuffle.to(device)
             
-            for anchor_idx in range(len(output_anchor)):
-                anchor = output_anchor[anchor_idx]
-                for two_idx in range(len(output_two)):
-                    are_same_speaker = torch.equal(label[anchor_idx], label[two_idx])
-                    if two_idx != anchor_idx and not are_same_speaker:
-                        loss = loss_fn(anchor, output_two[anchor_idx], output_two[two_idx])
-                        losses.append(loss)
+            label_shuffle = label[perm]
+            # Check if tensors are equal element-wise
+            equal_mask = torch.eq(label, label_shuffle)
+
+            # Convert boolean mask to 1s and 0s
+            equal_mask = equal_mask.float()
+
+            # Sum along the second dimension to get a [B, 1] mask
+            equal_mask = torch.sum(equal_mask, dim=1, keepdim=True)
+            target_neg = torch.where(equal_mask == label.size(1), torch.ones_like(equal_mask), -torch.ones_like(equal_mask))
+            target_neg = torch.squeeze(target_neg).to(device)
             
+            loss_neg = loss_fn(output_anchor, output_two_shuffle, target_neg)
+            
+            loss_sum = loss_pos + loss_neg
             # Convert the list of losses to a tensor
-            loss_tensor = torch.stack(losses)        
-                    
-            loss_sum = loss_tensor.sum() / len(losses)
-            
             test_loss_meter.update(loss_sum.item())
             
 

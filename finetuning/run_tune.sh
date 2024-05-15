@@ -41,7 +41,7 @@ timem=0
 mixup=0
 
 epoch=10
-batch_size=48
+batch_size=128
 
 # shuffle frames in the spectrogram in random order
 shuffle_frames="False"

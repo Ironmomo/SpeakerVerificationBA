@@ -1,69 +1,98 @@
-# Navigate up one level to the 'pretraining' directory, where 'dataloader.py' is located
 import os, sys
-import torch
 
-sys.path.append(os.path.abspath('../SpeakerVerificationBA'))
+sys.path.append(os.getcwd())
+sys.path.append('/home/fassband/ba/SpeakerVerificationBA')
 
 import dataloader
+import torch
+import torch.nn.functional as F
+from ssast_model import ASTModel
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+import matplotlib.pyplot as plt
+import numpy as np
 
-fintune = True
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = "cpu"
 
-json_f = "/home/fassband/ba/SpeakerVerificationBA/data/finetuning/augmentation.json"
-csv_f = "/home/fassband/ba/SpeakerVerificationBA/data/finetuning/augmentation.csv"
-audio_conf = {
-            'num_mel_bins': 128,
-            'target_length': 1024,
-            'freqm': 0,
-            'timem': 0,
-            'mixup': 0,
-            'dataset': 'asli',
-            'mean': -3.6925695,
-            'std': 4.020388,
-            'noise': False,
-            'mode': 'train',
-            'shuffle_frames': False,
-            'finetuning': fintune
-        }
+task='finetuning_avg'
+mask_patch=390 # 390 would be more similar to original paper (because we habe 998 instead of 1024 targetlength)
 
-aset = dataloader.AudioDataset(audio_conf=audio_conf, dataset_json_file=json_f, label_csv=csv_f)
+dataset='asli' # audioset and librispeech
+tr_data='/home/fassband/ba/SpeakerVerificationBA/data/eer2/augmentation.json'
+label_csv='/home/fassband/ba/SpeakerVerificationBA/data/eer2/augmentation.csv'
+dataset_mean=-6.5975285
+dataset_std=3.6734943
+target_length=998 # (10000ms - (25ms - 10ms)) // 10ms = 998
+num_mel_bins=128
 
-train_loader = torch.utils.data.DataLoader(
-    aset,
-    batch_size=24,
-    shuffle=True,
-    num_workers=16,
-    pin_memory=True,
-    drop_last=True
-)
+model_size='base'
+# no patch split overlap
+fshape=128
+tshape=2
+fstride=fshape
+tstride=tshape
+# no class balancing as it implicitly uses label information
+bal='none'
+lr=1e-4
+# learning rate decreases if the pretext task performance does not improve on the validation set
+lr_patience=2
+# no spectrogram masking
+freqm=0
+timem=0
+# no mixup training
+mixup=0
 
-# Create an iterator from the DataLoader
-data_iterator = iter(train_loader)
+epoch=10
+batch_size=48
 
-files = []
+# shuffle frames in the spectrogram in random order
+shuffle_frames="False"
+# how often should model be evaluated on the validation set and saved
+epoch_iter=1000
+# how often should loss and statistics be printed
+n_print_steps=100
 
-if fintune:
-    
-    for i, (audio_input1, audio_input2, labels, file, file2) in enumerate(train_loader):
+# set pretrained model
+#pretrained_model='/home/fassband/ba/SpeakerVerificationBA/pretraining/exp/pretrained-20240501-162648-original-base-f128-t2-b48-lr1e-4-m390-pretrain_joint-asli/models/best_audio_model.pth'
+pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240514-004009-original-base-f128-t2-b48-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
 
-        audio_input1, audio_input2, labels = audio_input1.to(device), audio_input2.to(device), labels.to(device)
-        for f in files:
-            for fi in file:
-                if f == fi:
-                    print("ALLREADY EXISTS")
-                    raise Exception("ALLREADY EXISTS")
-        files.extend(file)
-        # Print out the details to see what the batch contains
+num_workers = 16
 
-    
-    print(len(files))
-else:
-        # Fetch the first batch
-    audio_input1, labels = next(data_iterator)
+n_class = 527 # embedding size
 
-    # Print out the details to see what the batch contains
-    print("Audio input shape:", audio_input1.shape)
-    print("Labels shape:", labels.shape)
-    
-exit(0)
+audio_conf = {'num_mel_bins': num_mel_bins, 'target_length': target_length, 'freqm': freqm, 'timem': timem, 'mixup': mixup, 'dataset': dataset,
+              'mode':'train', 'mean':dataset_mean, 'std':dataset_std, 'noise':None, 'shuffle_frames':shuffle_frames, 'finetuning':True}
+
+
+# Init Dataloader
+dataset = dataloader.AudioDataset(tr_data, label_csv=label_csv, audio_conf=audio_conf)
+
+
+# Init model
+audio_model = ASTModel(label_dim=n_class, fshape=fshape, tshape=tshape, fstride=fstride, tstride=tstride,
+                input_fdim=num_mel_bins, input_tdim=target_length, model_size=model_size, pretrain_stage=False,
+                load_pretrained_mdl_path=pretrained_model).to(device=DEVICE)
+
+cluster = (num_mel_bins != fshape)
+
+inp1, inp1_2, lab1 = dataset.__getitem__(0)
+inp2, inp2_2, lab2 = dataset.__getitem__(30)
+inp3, inp3_2, lab3 = dataset.__getitem__(149)
+
+inp1 = inp1.unsqueeze(0)
+
+inp2 = inp2.unsqueeze(0)
+
+inp3 = inp3.unsqueeze(0)
+
+
+o1 = audio_model(inp1, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
+o2 = audio_model(inp2, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
+o3 = audio_model(inp3, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
+
+def calc_distance(v1, v2):
+    dist = F.cosine_similarity(v1,v2).item()
+    return dist
+
+print(calc_distance(o1,o2))
+print(calc_distance(o1,o3))
