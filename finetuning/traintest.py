@@ -98,6 +98,7 @@ def train(audio_model, train_loader, test_loader, args):
             # calc loss
             target_pos = torch.ones(B).to(device)
             loss_pos = loss_fn(output_anchor, output_two, target_pos)
+            
             # shuffle two
             perm = torch.randperm(B)
             output_two_shuffle = output_two[perm]
@@ -120,6 +121,7 @@ def train(audio_model, train_loader, test_loader, args):
             
             loss_sum = loss_pos + loss_neg
 
+            # Backpropagation
             optimizer.zero_grad()
             loss_sum.backward()
             optimizer.step()

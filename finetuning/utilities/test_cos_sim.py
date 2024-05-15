@@ -10,6 +10,7 @@ from ssast_model import ASTModel
 
 import matplotlib.pyplot as plt
 import numpy as np
+from finetuning.utilities import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEVICE = "cpu"
@@ -54,7 +55,7 @@ n_print_steps=100
 
 # set pretrained model
 #pretrained_model='/home/fassband/ba/SpeakerVerificationBA/pretraining/exp/pretrained-20240501-162648-original-base-f128-t2-b48-lr1e-4-m390-pretrain_joint-asli/models/best_audio_model.pth'
-pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240514-004009-original-base-f128-t2-b48-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
+pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240514-111049-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
 
 num_workers = 16
 
@@ -67,6 +68,10 @@ audio_conf = {'num_mel_bins': num_mel_bins, 'target_length': target_length, 'fre
 # Init Dataloader
 dataset = dataloader.AudioDataset(tr_data, label_csv=label_csv, audio_conf=audio_conf)
 
+test_loader = torch.utils.data.DataLoader(
+    dataset,
+    batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=False, drop_last=True)
+
 
 # Init model
 audio_model = ASTModel(label_dim=n_class, fshape=fshape, tshape=tshape, fstride=fstride, tstride=tstride,
@@ -75,24 +80,55 @@ audio_model = ASTModel(label_dim=n_class, fshape=fshape, tshape=tshape, fstride=
 
 cluster = (num_mel_bins != fshape)
 
-inp1, inp1_2, lab1 = dataset.__getitem__(0)
-inp2, inp2_2, lab2 = dataset.__getitem__(30)
-inp3, inp3_2, lab3 = dataset.__getitem__(149)
+positiv_similarity = AverageMeter()
+negativ_similarity = AverageMeter()
+size = len(test_loader)
 
-inp1 = inp1.unsqueeze(0)
-
-inp2 = inp2.unsqueeze(0)
-
-inp3 = inp3.unsqueeze(0)
-
-
-o1 = audio_model(inp1, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
-o2 = audio_model(inp2, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
-o3 = audio_model(inp3, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
 
 def calc_distance(v1, v2):
-    dist = F.cosine_similarity(v1,v2).item()
+    dist = F.cosine_similarity(v1,v2)
     return dist
 
-print(calc_distance(o1,o2))
-print(calc_distance(o1,o3))
+
+for i, (audio_input, audio_input_two, label) in enumerate(test_loader):
+        batch_size = len(audio_input)
+        print(f"[{i*batch_size}/{size*batch_size}]")
+
+        output = audio_model(audio_input, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
+        output_two = audio_model(audio_input_two, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
+        target_pos = torch.ones(batch_size)
+        
+        pos_cos = calc_distance(output, output_two)
+
+         # shuffle two
+        perm = torch.randperm(batch_size)
+        output_two_shuffle = output_two[perm]
+        
+        label_shuffle = label[perm]
+        # Check if tensors are equal element-wise
+        equal_mask = torch.eq(label, label_shuffle)
+    
+        # Convert boolean mask to 1s and 0s
+        equal_mask = equal_mask.float()
+
+        # Sum along the second dimension to get a [B, 1] mask
+        equal_mask = torch.sum(equal_mask, dim=1, keepdim=True)
+        target_neg = torch.where(equal_mask == label.size(1), torch.ones_like(equal_mask), -torch.ones_like(equal_mask))
+        target_neg = torch.squeeze(target_neg)
+        
+        neg_cos = calc_distance(output[target_neg == -1], output_two_shuffle[target_neg == -1])
+        
+        pos_cos = torch.mean(pos_cos)
+        neg_cos = torch.mean(neg_cos)
+        
+        print(f"Positive Similarity: {pos_cos}")
+        print(f"Negative Similarity: {neg_cos}")
+        
+        positiv_similarity.update(pos_cos)
+        negativ_similarity.update(neg_cos)
+
+
+print(f"Positive Similarity: {positiv_similarity.avg}")
+print(f"Negative Similarity: {negativ_similarity.avg}")
+
+

@@ -44,7 +44,7 @@ epoch=10
 batch_size=128
 
 # shuffle frames in the spectrogram in random order
-shuffle_frames="False"
+shuffle_frames="True"
 # how often should model be evaluated on the validation set and saved
 epoch_iter=1000
 # how often should loss and statistics be printed

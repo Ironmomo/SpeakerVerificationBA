@@ -81,6 +81,23 @@ audio_model = ASTModel(label_dim=n_class, fshape=fshape, tshape=tshape, fstride=
 #if not isinstance(audio_model, torch.nn.DataParallel):
 #    audio_model = torch.nn.DataParallel(audio_model)
  
+# Configure Plot
+# Setting global parameters for Matplotlib to use LaTeX rendering
+plt.rcParams.update({
+    'text.usetex': True,  # Enable LaTeX rendering
+    'text.latex.preamble': r'\usepackage{lmodern}\usepackage{amsmath}',  # Use Latin Modern font and include amsmath
+    'font.family': 'serif',  # Use serif font for consistency with LaTeX document
+    'font.serif': ['Latin Modern Roman'],  # Specify Latin Modern Roman
+    'pdf.fonttype': 42,  # Ensures fonts are embedded as TrueType
+    'savefig.dpi': 400,  # Lower DPI setting for non-text elements
+    'font.size': 11,  # Adjust font size to match document (you may need to tweak this)
+    'axes.labelsize': 9.0,  # Size of the x and y labels
+    'axes.titlesize': 11,  # Size of the plot title
+    'xtick.labelsize': 7.5,  # Size of the x-axis tick labels
+    'ytick.labelsize': 7.5,  # Size of the y-axis tick labels
+    'legend.fontsize': 9,  # Size of the legend font
+    'figure.titlesize': 12.0  # Size of the figure's main title if any
+})
     
 def get_embeddings(model, dataloader):
     embeddings = []
@@ -156,7 +173,7 @@ def eer_plot(model, dataloader):
 
         if abs(fp - fn) < closest:
             best_t = t
-            val_best_t = min(fp,fn)
+            val_best_t = min(fp,fn) / (tp + tn + fp + fn) * 100
             closest = abs(fp - fn)
         acc = (tp + tn) / (tp + tn + fp + fn) * 100
         acc_list.append(acc)

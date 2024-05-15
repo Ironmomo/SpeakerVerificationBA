@@ -1,0 +1,9 @@
+Configuration:
+
+- Batch: 128
+- lr: 1e-4
+
+Performance:
+
+- EER: 6.73%
+- ACC: 87.13%
