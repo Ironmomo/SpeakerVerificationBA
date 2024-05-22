@@ -54,7 +54,6 @@ n_print_steps=100
 
 # set pretrained model
 pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240514-111049-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
-#pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240515-104607-shuffled-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
 
 num_workers = 16
 
@@ -70,6 +69,8 @@ dataset = dataloader.AudioDataset(tr_data, label_csv=label_csv, audio_conf=audio
 test_loader = torch.utils.data.DataLoader(
     dataset,
     batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=False)
+
+print(f"Size dataset: {len(test_loader)}")
 
 # Init model
 audio_model = ASTModel(label_dim=n_class, fshape=fshape, tshape=tshape, fstride=fstride, tstride=tstride,
@@ -97,92 +98,155 @@ plt.rcParams.update({
     'figure.titlesize': 12.0  # Size of the figure's main title if any
 })
     
-def get_embeddings(model, dataloader):
-    embeddings = []
-    label_embeddings = []
+def main(model, dataloader):
     cluster = (num_mel_bins != fshape)
     audio_model.eval()
     size = len(dataloader)
+    
+    data = []
+    
     for i, (audio_input, audio_input_two, labels) in enumerate(dataloader):
         print(f"[{i*batch_size}/{size*batch_size}]")
-        #inp = torch.cat((audio_input, audio_input_two), dim=0).to(DEVICE)
-        #lab = torch.cat((labels, labels), dim=0).to(DEVICE)
+        # Calc embeddings
+        output = model(audio_input, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
+        output_two = model(audio_input_two, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
         
-        output = model(audio_input, task, mask_patch=mask_patch, cluster=cluster)
+        # Make Classification
+        for t in np.arange(0.0, 1.02, 0.01):
+            tp, tn, fp, fn = get_classification(output, output_two, labels, t)
+            data.append([tp,tn,fp,fn,t])
+            
+    # Calc Performance
+    data_t = torch.tensor(data)
+    
+    acc_t = calc_acc(data_t)
+    
+    fp_t = get_mean_val_by_treshold(data_t, 2)
+    fn_t = get_mean_val_by_treshold(data_t, 3)
+    
+    # Extract the labels (last column)
+    t = data_t[:, -1]
+    unique_t = t.unique()
+    
+    eer_plot(acc_t, fp_t, fn_t, unique_t)
+    
+    
+       
+def calc_acc(data):
+    # Extract the labels (last column)
+    t = data[:, -1]
+
+    # Find unique labels
+    unique_t = t.unique()
+
+    # Create a tensor to store the result for each unique t
+    acc_t = torch.zeros_like(unique_t, dtype=torch.float32)
+
+    # Iterate over each unique t, perform the calculation, and store the result
+    for i, label in enumerate(unique_t):
+        # Select rows where the label matches the current label and columns 0-3
+        d = data[t == label, :4]
         
-        embeddings.extend(output)
-        label_embeddings.extend(labels)
+        # Perform the calculation
+        acc = (d[:, 0] + d[:, 1]) / (d[:, 0] + d[:, 1] + d[:, 2] + d[:, 3])
+        # Store the mean result in acc_t
+        acc_t[i] = acc.mean()
         
-    return embeddings, label_embeddings
+    return acc_t
+
+
+def get_mean_val_by_treshold(data, col):
+    # Extract the labels (last column)
+    t = data[:, -1]
+
+    # Find unique labels
+    unique_t = t.unique()
+
+    # Create a tensor to store the result for each unique t
+    val_t = torch.zeros_like(unique_t, dtype=torch.float32)
+
+    # Iterate over each unique t, perform the calculation, and store the result
+    for i, label in enumerate(unique_t):
+        # Select rows where the label matches the current label and columns 0-3
+        d = data[t == label, col]
+
+        # Store the mean result in acc_t
+        val_t[i] = d.mean()
+    
+    return val_t
+    
 
 def calc_distance(v1, v2):
-
-    dist = torch.norm(v1 - v2).item()
-    #dist = F.cosine_similarity(v1, v2, dim=0).item()
+    dist = F.cosine_similarity(v1, v2, dim=0).item()
     return dist
 
-def get_classification(embeddings, labels, treshold):
+
+def get_classification(embeddings, embeddings_two, labels, treshold):
     true_positive = 0
     true_negative = 0
     
     false_positive = 0
     false_negative = 0
     
-    for v1_idx in range(len(embeddings)):
-        for v2_idx in range(len(embeddings)):
-            if v1_idx != v2_idx:
-                # Model classify as negative
-                if calc_distance(embeddings[v1_idx], embeddings[v2_idx]) >= treshold:
-                    # Embeddings are positive
-                    if torch.equal(labels[v1_idx], labels[v2_idx]):
-                        false_negative += 1
-                    # Embeddings are negative
-                    else:
-                        true_negative += 1
-                        
-                # Model classify as positive
-                else:
-                    # Embeddings are negative
-                    if not torch.equal(labels[v1_idx], labels[v2_idx]):
-                        false_positive += 1
-                    # Embeddings are negative
-                    else:
-                        true_positive += 1
+    for idx in range(len(embeddings) - 1):
+        v1_1 = embeddings[idx]
+        v1_2 = embeddings_two[idx]
+        v2_1 = embeddings[idx+1]
+        
+        tp1, tn1, fp1, fn1 = calc_class(v1_1, v1_2, True, treshold)
+        tp2, tn2, fp2, fn2 = calc_class(v1_1, v2_1, torch.equal(labels[idx], labels[idx + 1]), treshold)
+
+        true_positive += tp1
+        true_positive += tp2
+        true_negative += tn1
+        true_negative += tn2
+        false_positive += fp1
+        false_positive += fp2
+        false_negative += fn1
+        false_negative += fn2       
+                
     
     return true_positive, true_negative, false_positive, false_negative
-                        
-def eer_plot(model, dataloader):
-    print("Calc embeddings")
-    embeddings, labels = get_embeddings(model, dataloader)
-    fp_list = []
-    fn_list = []
-    t_list  = []
-    ac_list = []
-    best_t = 0
-    val_best_t = 100
-    closest = float('inf')
-    
-    print("Check treshold")
-    for t in np.arange(0.0, 1.02, 0.01):
-        tp, tn, fp, fn = get_classification(embeddings, labels, t)
-        fp_list.append((fp / (tp + tn + fp + fn)) * 100)
-        fn_list.append((fn / (tp + tn + fp + fn)) * 100)
-        t_list.append(t)
 
-        if ((fp + fn) / 2) < closest:
-            best_t = t
-            val_best_t = min(fp,fn) / (tp + tn + fp + fn) * 100
-            closest = (fp + fn) / 2
-        acc = (tp + tn) / (tp + tn + fp + fn) * 100
-        ac_list.append(acc)
+
+def calc_class(v1, v2, same, treshold):
+    tp = 0
+    tn = 0
+    fp = 0
+    fn = 0
+    # Model classify as negative
+    if calc_distance(v1, v2) < treshold:
+        # Embeddings are positive
+        if same:
+            fn += 1
+        # Embeddings are negative
+        else:
+            tn += 1
+            
+    # Model classify as positive
+    else:
+        # Embeddings are negative
+        if same:
+            fp += 1
+        # Embeddings are negative
+        else:
+            tp += 1
+            
+    return tp, tn, fp, fn
+ 
+                        
+def eer_plot(acc, fp, fn, unique_t):
+    best_t_idx = abs(fp - fn).argmin()
+    best_t = unique_t[best_t_idx]
+    eer = (fp[best_t_idx] + fn[best_t_idx]) / 2
     
     print(f'Best Treshold: {best_t}')
-    print(f'Best Treshold EER: {val_best_t}')
-    print(f"Best Accuracy: {max(ac_list)}")
+    print(f'EER: {eer}')
+    print(f"Best Accuracy: {acc.max()}")
         
     plt.figure()
-    plt.plot(t_list, fp_list, label='False Positive')
-    plt.plot(t_list, fn_list, label='False Negative')
+    plt.plot(unique_t, fp, label='False Positive')
+    plt.plot(unique_t, fn, label='False Negative')
     plt.xlabel('Treshold')
     plt.ylabel('Error Rate in %')
     plt.title('EER - Equal Error Rate')
@@ -190,10 +254,10 @@ def eer_plot(model, dataloader):
     plt.show()
     
     plt.figure()
-    plt.plot(t_list, ac_list)
+    plt.plot(unique_t, acc)
     plt.xlabel('Cosine Similarity - Treshold')
     plt.ylabel('Accuracy Score in %')
     plt.title('Accuracy Score')
     plt.show()
 
-eer_plot(audio_model, test_loader)
+main(audio_model, test_loader)

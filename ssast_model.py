@@ -161,6 +161,9 @@ class ASTModel(nn.Module):
             # mlp head for fine-tuning
             self.mlp_head = nn.Sequential(nn.LayerNorm(self.original_embedding_dim),
                                           nn.Linear(self.original_embedding_dim, label_dim))
+            
+            # Custom finetuning
+            self.sp_head = nn.Sequential(nn.Linear(self.original_embedding_dim, self.original_embedding_dim), nn.ReLU(), nn.Linear(self.original_embedding_dim, 256))
 
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim, fshape, tshape)
             # patch array dimension during pretraining
@@ -264,6 +267,31 @@ class ASTModel(nn.Module):
         else:
             x = x[:, 0]
         x = self.mlp_head(x)
+        return x
+    
+    def finetuningSimilarity(self, x):
+        B = x.shape[0]
+        x = self.v.patch_embed(x)
+        if self.cls_token_num == 2:
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            dist_token = self.v.dist_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        else:
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, x), dim=1)
+        x = x + self.v.pos_embed
+        x = self.v.pos_drop(x)
+
+        for blk_id, blk in enumerate(self.v.blocks):
+            x = blk(x)
+        x = self.v.norm(x)
+
+        # if models has two cls tokens (DEIT), average as the clip-level representation
+        if self.cls_token_num == 2:
+            x = (x[:, 0] + x[:, 1]) / 2
+        else:
+            x = x[:, 0]
+        x = self.sp_head(x)
         return x
 
     # masked patch pretraining with discriminative objective
@@ -523,7 +551,9 @@ class ASTModel(nn.Module):
             return result
         
         elif task == 'finetuning_avg':
-            # TODO: calc embeding
+            return self.finetuningSimilarity(x)
+
+        elif task == 'finetuning_avg_v1':
             return self.finetuningavgtok(x)
         else:
             raise Exception('Task unrecognized.')

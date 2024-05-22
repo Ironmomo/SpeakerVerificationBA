@@ -15,12 +15,12 @@ from finetuning.utilities import *
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEVICE = "cpu"
 
-task='finetuning_avg'
+task='finetuning_avg_v1'
 mask_patch=390 # 390 would be more similar to original paper (because we habe 998 instead of 1024 targetlength)
 
 dataset='asli' # audioset and librispeech
-tr_data='/home/fassband/ba/SpeakerVerificationBA/data/eer2/augmentation.json'
-label_csv='/home/fassband/ba/SpeakerVerificationBA/data/eer2/augmentation.csv'
+tr_data='/home/fassband/ba/SpeakerVerificationBA/data/eer3/augmentation.json'
+label_csv='/home/fassband/ba/SpeakerVerificationBA/data/eer3/augmentation.csv'
 dataset_mean=-6.5975285
 dataset_std=3.6734943
 target_length=998 # (10000ms - (25ms - 10ms)) // 10ms = 998
@@ -47,15 +47,15 @@ epoch=10
 batch_size=48
 
 # shuffle frames in the spectrogram in random order
-shuffle_frames="False"
+shuffle_frames=False
 # how often should model be evaluated on the validation set and saved
 epoch_iter=1000
 # how often should loss and statistics be printed
 n_print_steps=100
 
 # set pretrained model
-#pretrained_model='/home/fassband/ba/SpeakerVerificationBA/pretraining/exp/pretrained-20240501-162648-original-base-f128-t2-b48-lr1e-4-m390-pretrain_joint-asli/models/best_audio_model.pth'
 pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240514-111049-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
+
 
 num_workers = 16
 
@@ -94,10 +94,10 @@ for i, (audio_input, audio_input_two, label) in enumerate(test_loader):
         batch_size = len(audio_input)
         print(f"[{i*batch_size}/{size*batch_size}]")
 
-        output = audio_model(audio_input, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
-        output_two = audio_model(audio_input_two, 'finetuning_avg', mask_patch=mask_patch, cluster=cluster)
+        output = audio_model(audio_input, task, mask_patch=mask_patch, cluster=cluster)
+        output_two = audio_model(audio_input_two, task, mask_patch=mask_patch, cluster=cluster)
         target_pos = torch.ones(batch_size)
-        
+
         pos_cos = calc_distance(output, output_two)
 
          # shuffle two

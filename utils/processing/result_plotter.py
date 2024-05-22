@@ -20,7 +20,7 @@ plt.rcParams.update({
 })
 
 # Path to csv data
-results = '/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240515-104607-shuffled-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/result.csv'
+results = '/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240521-113228-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/result.csv'
 
 # Read the CSV file into a DataFrame
 df = pd.read_csv(results, header=None)

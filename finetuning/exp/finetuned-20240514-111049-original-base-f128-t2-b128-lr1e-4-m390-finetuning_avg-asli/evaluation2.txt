@@ -7,8 +7,10 @@ Configuration:
 
 Performance:
 
-- EER: 1.314%
+- Shuffle: False
+
+- EER: %
 - Treshold: 0.97
 
 - pos_similiarity: 0.913
-- neg_similarity: 0.147
+- neg_similarity: 0.169

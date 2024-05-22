@@ -1,0 +1,16 @@
+Configuration:
+
+- Batch: 128
+- lr: 1e-4
+- Pretrained: Shuffled
+- Shuffle: False
+
+Performance:
+
+- EER: 5.62%
+- Treshold: 0.98
+
+- Acc: 83.87
+
+- pos_similiarity: 0.792
+- neg_similarity: 0.22
