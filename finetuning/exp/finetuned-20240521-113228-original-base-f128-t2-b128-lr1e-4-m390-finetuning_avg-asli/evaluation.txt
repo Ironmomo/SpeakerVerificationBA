@@ -1,0 +1,27 @@
+Configuration :
+
+- Batch: 128
+- lr: 1e-4
+- Pretrained: Original
+- Shuffle: False
+
+- Head: CLS
+
+- Epoch: 30
+
+Performance:
+
+- Shuffle: False
+
+- EER: 13.745
+
+- pos_similiarity: 0.979
+- neg_similarity: 0.723
+
+
+- Shuffle: True
+
+- EER: 12.13%
+
+- pos_similiarity: 0.979
+- neg_similarity: 0.723

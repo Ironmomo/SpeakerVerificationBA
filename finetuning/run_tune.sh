@@ -12,7 +12,7 @@ mkdir -p slurm_log
 # Specify which GPUs to use
 export CUDA_VISIBLE_DEVICES=0,1,2
 
-task=finetuning_avg
+task=finetuning_avg_v1
 mask_patch=390 # 390 would be more similar to original paper (because we habe 998 instead of 1024 targetlength)
 
 dataset=asli # audioset and librispeech

@@ -21,8 +21,8 @@ mask_patch=390 # 390 would be more similar to original paper (because we habe 99
 dataset='asli' # audioset and librispeech
 tr_data='/home/fassband/ba/SpeakerVerificationBA/data/eer3/augmentation.json'
 label_csv='/home/fassband/ba/SpeakerVerificationBA/data/eer3/augmentation.csv'
-dataset_mean=-6.5975285
-dataset_std=3.6734943
+dataset_mean=-7.1876974
+dataset_std=4.2474914
 target_length=998 # (10000ms - (25ms - 10ms)) // 10ms = 998
 num_mel_bins=128
 
@@ -47,15 +47,14 @@ epoch=10
 batch_size=48
 
 # shuffle frames in the spectrogram in random order
-shuffle_frames=False
+shuffle_frames=True
 # how often should model be evaluated on the validation set and saved
 epoch_iter=1000
 # how often should loss and statistics be printed
 n_print_steps=100
 
 # set pretrained model
-pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240514-111049-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
-
+pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240529-174239-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg_v1-asli/models/best_audio_model.pth'
 
 num_workers = 16
 

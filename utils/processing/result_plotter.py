@@ -20,8 +20,7 @@ plt.rcParams.update({
 })
 
 # Path to csv data
-results = '/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240521-113228-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/result.csv'
-
+results = '/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240529-174239-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg_v1-asli/result.csv'
 # Read the CSV file into a DataFrame
 df = pd.read_csv(results, header=None)
 
@@ -32,11 +31,14 @@ test_loss_avg = df[df.iloc[:, 1] != 0][1]
 plt.plot(df[0])
 
 # Plotting
-plt.figure(figsize=(6.2,6.2))
+plt.figure(figsize=(6.0,3.2))
 plt.plot(train_loss_avg, label='Train Loss Avg')
 plt.plot(test_loss_avg, label='Test Loss Avg')
 plt.xlabel('Iteration')
 plt.ylabel('Loss')
 plt.title('Training and Test Loss')
 plt.legend()
+
+#plt.savefig("/home/fassband/ba/SpeakerVerificationBA/plots_and_audios/plots/Finetuning/eer_finetuned_model_batch128.pdf")
+
 plt.show()

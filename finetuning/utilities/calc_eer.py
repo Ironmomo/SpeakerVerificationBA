@@ -20,8 +20,8 @@ mask_patch=390 # 390 would be more similar to original paper (because we habe 99
 dataset='asli' # audioset and librispeech
 tr_data='/home/fassband/ba/SpeakerVerificationBA/data/eer3/augmentation.json'
 label_csv='/home/fassband/ba/SpeakerVerificationBA/data/eer3/augmentation.csv'
-dataset_mean=-6.5975285
-dataset_std=3.6734943
+dataset_mean=-6.4959574
+dataset_std=3.421145
 target_length=998 # (10000ms - (25ms - 10ms)) // 10ms = 998
 num_mel_bins=128
 
@@ -46,15 +46,14 @@ epoch=10
 batch_size=48
 
 # shuffle frames in the spectrogram in random order
-shuffle_frames=False
+shuffle_frames=True
 # how often should model be evaluated on the validation set and saved
 epoch_iter=1000
 # how often should loss and statistics be printed
 n_print_steps=100
 
 # set pretrained model
-pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240514-111049-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
-#pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240515-104607-shuffled-base-f128-t2-b128-lr1e-4-m390-finetuning_avg-asli/models/best_audio_model.pth'
+pretrained_model='/home/fassband/ba/SpeakerVerificationBA/finetuning/exp/finetuned-20240529-174239-original-base-f128-t2-b128-lr1e-4-m390-finetuning_avg_v1-asli/models/best_audio_model.pth'
 
 num_workers = 16
 
@@ -117,8 +116,8 @@ def get_embeddings(model, dataloader):
 
 def calc_distance(v1, v2):
 
-    dist = torch.norm(v1 - v2).item()
-    #dist = F.cosine_similarity(v1, v2, dim=0).item()
+    #dist = torch.norm(v1 - v2).item()
+    dist = F.cosine_similarity(v1, v2, dim=0).item()
     return dist
 
 def get_classification(embeddings, labels, treshold):
@@ -132,7 +131,7 @@ def get_classification(embeddings, labels, treshold):
         for v2_idx in range(len(embeddings)):
             if v1_idx != v2_idx:
                 # Model classify as negative
-                if calc_distance(embeddings[v1_idx], embeddings[v2_idx]) >= treshold:
+                if calc_distance(embeddings[v1_idx], embeddings[v2_idx]) < treshold:
                     # Embeddings are positive
                     if torch.equal(labels[v1_idx], labels[v2_idx]):
                         false_negative += 1
@@ -163,16 +162,16 @@ def eer_plot(model, dataloader):
     closest = float('inf')
     
     print("Check treshold")
-    for t in np.arange(0.0, 1.02, 0.01):
+    for t in np.arange(0.0, 1.0, 0.1):
         tp, tn, fp, fn = get_classification(embeddings, labels, t)
         fp_list.append((fp / (tp + tn + fp + fn)) * 100)
         fn_list.append((fn / (tp + tn + fp + fn)) * 100)
         t_list.append(t)
 
-        if ((fp + fn) / 2) < closest:
+        if abs(fp - fn) < closest:
             best_t = t
-            val_best_t = min(fp,fn) / (tp + tn + fp + fn) * 100
-            closest = (fp + fn) / 2
+            val_best_t = ((fp + fn)/2) / (tp + tn + fp + fn) * 100
+            closest = abs(fp - fn)
         acc = (tp + tn) / (tp + tn + fp + fn) * 100
         ac_list.append(acc)
     
@@ -197,3 +196,4 @@ def eer_plot(model, dataloader):
     plt.show()
 
 eer_plot(audio_model, test_loader)
+

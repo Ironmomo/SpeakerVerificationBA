@@ -163,7 +163,7 @@ class ASTModel(nn.Module):
                                           nn.Linear(self.original_embedding_dim, label_dim))
             
             # Custom finetuning
-            self.sp_head = nn.Sequential(nn.Linear(self.original_embedding_dim, self.original_embedding_dim), nn.ReLU(), nn.Linear(self.original_embedding_dim, 256))
+            #self.sp_head = nn.Sequential(nn.Linear(self.original_embedding_dim, self.original_embedding_dim), nn.ReLU(), nn.Linear(self.original_embedding_dim, 256))
 
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim, fshape, tshape)
             # patch array dimension during pretraining

@@ -61,7 +61,7 @@ parser.add_argument('--model_size', help='the size of AST models', type=str, def
 
 parser.add_argument("--shuffle_frames", help='shuffle the frames in the input spectrogram (default: False)', type=ast.literal_eval, default='False')
 
-parser.add_argument("--task", type=str, default='ft_cls', help="pretraining or fine-tuning task", choices=["ft_avgtok", "ft_cls", "pretrain_mpc", "pretrain_mpg", "pretrain_joint", "finetuning_avg"])
+parser.add_argument("--task", type=str, default='ft_cls', help="pretraining or fine-tuning task", choices=["ft_avgtok", "ft_cls", "pretrain_mpc", "pretrain_mpg", "pretrain_joint", "finetuning_avg", "finetuning_avg_v1"])
 
 # pretraining augments
 #parser.add_argument('--pretrain_stage', help='True for self-supervised pretraining stage, False for fine-tuning stage', type=ast.literal_eval, default='False')

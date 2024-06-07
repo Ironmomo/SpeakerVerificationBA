@@ -14,8 +14,8 @@ import dataloader
 audio_conf = {'num_mel_bins': 128, 'target_length': 998, 'freqm': 0, 'timem': 0, 'mixup': 0, 'skip_norm': True, 'mode': 'train', 'dataset': 'audioset_librispeech'}
 
 train_loader = torch.utils.data.DataLoader(
-    dataloader.AudioDataset('data/finetuning/augmentation.json', 
-                                   label_csv='data/finetuning/augmentation.csv',
+    dataloader.AudioDataset('/home/fassband/ba/SpeakerVerificationBA/data/eer2/augmentation.json', 
+                                   label_csv='/home/fassband/ba/SpeakerVerificationBA/data/eer2/augmentation.csv',
                                    audio_conf=audio_conf), batch_size=1000, shuffle=False, num_workers=32, pin_memory=True)
 mean=[]
 std=[]
