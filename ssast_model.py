@@ -47,7 +47,7 @@ class ASTModel(nn.Module):
     def __init__(self, label_dim=527,
                  fshape=128, tshape=2, fstride=128, tstride=2,
                  input_fdim=128, input_tdim=1024, model_size='base',
-                 pretrain_stage=True, load_pretrained_mdl_path=None):
+                 pretrain_stage=True, load_pretrained_mdl_path=None, finetune=False):
 
         super(ASTModel, self).__init__()
         #assert timm.__version__ == '0.4.5', 'Please use timm == 0.4.5, the code might not be compatible with newer versions.'
@@ -129,17 +129,21 @@ class ASTModel(nn.Module):
 
         # use a pretrained models for finetuning
         elif pretrain_stage == False:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if load_pretrained_mdl_path == None:
                 raise ValueError('Please set load_pretrained_mdl_path to load a pretrained models.')
-            sd = torch.load(load_pretrained_mdl_path, map_location=device)
+            sd = torch.load(load_pretrained_mdl_path)
             # get the fshape and tshape, input_fdim and input_tdim in the pretraining stage
             try:
                 p_fshape, p_tshape = sd['module.v.patch_embed.proj.weight'].shape[2], sd['module.v.patch_embed.proj.weight'].shape[3]
                 p_input_fdim, p_input_tdim = sd['module.p_input_fdim'].item(), sd['module.p_input_tdim'].item()
             except:
-                raise  ValueError('The model loaded is not from a torch.nn.Dataparallel object. Wrap it with torch.nn.Dataparallel and try again.')
-
+                #raise  ValueError('The model loaded is not from a torch.nn.Dataparallel object. Wrap it with torch.nn.Dataparallel and try again.')
+                p_fshape = fshape
+                p_tshape = tshape
+                p_input_fdim = input_fdim
+                p_input_tdim = input_tdim
+                
             print('now load a SSL pretrained models from ' + load_pretrained_mdl_path)
             # during pretraining, fstride=fshape and tstride=tshape because no patch overlapping is used
             # here, input_fdim and input_tdim should be that used in pretraining, not that in the fine-tuning.
@@ -155,7 +159,11 @@ class ASTModel(nn.Module):
             self.cls_token_num = audio_model.module.cls_token_num
 
             # mlp head for fine-tuning
-            self.mlp_head = nn.Sequential(nn.LayerNorm(self.original_embedding_dim), nn.Linear(self.original_embedding_dim, label_dim))
+            self.mlp_head = nn.Sequential(nn.LayerNorm(self.original_embedding_dim),
+                                          nn.Linear(self.original_embedding_dim, label_dim))
+            
+            # Custom finetuning
+            #self.sp_head = nn.Sequential(nn.Linear(self.original_embedding_dim, self.original_embedding_dim), nn.ReLU(), nn.Linear(self.original_embedding_dim, 256))
 
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim, fshape, tshape)
             # patch array dimension during pretraining
@@ -259,6 +267,31 @@ class ASTModel(nn.Module):
         else:
             x = x[:, 0]
         x = self.mlp_head(x)
+        return x
+    
+    def finetuningSimilarity(self, x):
+        B = x.shape[0]
+        x = self.v.patch_embed(x)
+        if self.cls_token_num == 2:
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            dist_token = self.v.dist_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        else:
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, x), dim=1)
+        x = x + self.v.pos_embed
+        x = self.v.pos_drop(x)
+
+        for blk_id, blk in enumerate(self.v.blocks):
+            x = blk(x)
+        x = self.v.norm(x)
+
+        # if models has two cls tokens (DEIT), average as the clip-level representation
+        if self.cls_token_num == 2:
+            x = (x[:, 0] + x[:, 1]) / 2
+        else:
+            x = x[:, 0]
+        x = self.sp_head(x)
         return x
 
     # masked patch pretraining with discriminative objective
@@ -588,5 +621,11 @@ class ASTModel(nn.Module):
             return result
         elif task == 'show_classification_head':
             return self.show_classification_head(x, mask_indices=mask_indices)
+        
+        elif task == 'finetuning_avg':
+            return self.finetuningSimilarity(x)
+
+        elif task == 'finetuning_avg_v1':
+            return self.finetuningavgtok(x)
         else:
             raise Exception('Task unrecognized.')

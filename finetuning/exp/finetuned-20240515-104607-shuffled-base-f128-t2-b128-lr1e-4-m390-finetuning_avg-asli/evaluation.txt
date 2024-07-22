@@ -1,0 +1,23 @@
+Configuration:
+
+- Batch: 128
+- lr: 1e-4
+- Pretrained: Original
+- Finetune-Shuffle: True
+
+Performance:
+
+- Shuffle: False
+
+- EER: 15.61%
+
+- pos_similiarity: 0.918
+- neg_similarity: 0.526
+
+
+- Shuffle: True
+
+- EER: 10.467%
+
+- pos_similiarity: 0.864
+- neg_similarity: 0.105

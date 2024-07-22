@@ -14,8 +14,13 @@ import threading
     It creates a csv annotation to get the newly created file path and its label (speaker_id).
 """
 
-json_lock = threading.Lock()
-csv_lock = threading.Lock()
+file_lock = threading.Lock()
+
+def get_number_of_rows(file_name):
+    with open(file_name, 'r', newline='') as csvfile:
+        csv_reader = csv.reader(csvfile)
+        row_count = sum(1 for row in csv_reader)
+    return row_count
 
 def split_and_resample_flac(input_files, output_folder, segment_ms: int = 10000, sample_rate: int = 16000):
 
@@ -72,46 +77,51 @@ def find_audio_files(directory):
 
 
 def add_csv_augmentation(file_name, entries):
-    with csv_lock:
-        if not os.path.exists(file_name):
-            
-            with open(file_name, 'w', newline='') as csvfile:
-                csv_writer = csv.writer(csvfile)
-                # Write header
-                csv_writer.writerow(['index','mid','display_name'])
-                
-                # Write rows
-                for idx, (filename, label) in enumerate(entries):
-                    csv_writer.writerow([idx, label, label])
+    if not os.path.exists(file_name):
         
-        else:
+        with open(file_name, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            # Write header
+            csv_writer.writerow(['index','mid','display_name'])
             
-            with open(file_name, 'a', newline='') as csvfile:
-                csv_writer = csv.writer(csvfile)
+            # Write rows
+            for idx, (filename, label) in enumerate(entries):
+                csv_writer.writerow([idx, label, label])
+    
+    else:
+        num_rows = get_number_of_rows(file_name=file_name) - 1 # minus one bcs of column name row
+        
+        with open(file_name, 'a', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
 
-                # Write rows
-                for idx, (filename, label) in enumerate(entries):
-                    csv_writer.writerow([idx, label, label])
+            # Write rows
+            for idx, (filename, label) in enumerate(entries):
+                csv_writer.writerow([num_rows + idx, label, label])
 
 
 def add_json_augmentation(json_file, entries):
-    with json_lock:
+    start_idx = 0
+    end_idx = 0
+    if not os.path.exists(json_file):
+        data = { "data":[] }
+        # Calc speaker_id idxs
+        end_idx = len(entries) - 1
+    
+    else:
         
-        if not os.path.exists(json_file):
-            data = { "data":[] }
+        with open(json_file, 'r') as file:
+            data = json.load(file)
+
+        start_idx = len(data['data'])
+        end_idx = start_idx + len(entries) - 1
         
-        else:
-            
-            with open(json_file, 'r') as file:
-                data = json.load(file)
-        
-        # Append entrie
-        for filename, label in entries:
-            data['data'].append({"wav": filename, "labels": label})
-        
-        
-        with open(json_file, 'w') as file:
-            json.dump(data, file, indent=4)
+    # Append entrie
+    for filename, label in entries:
+        data['data'].append({"wav": filename, "labels": label, "interclass_idxs": [start_idx, end_idx]})
+    
+    
+    with open(json_file, 'w') as file:
+        json.dump(data, file, indent=4)
             
 
 def preprocess_speaker(speaker_id, data_path, dest_path, csv_augmentation, json_augmentation):
@@ -144,8 +154,9 @@ def preprocess_speaker(speaker_id, data_path, dest_path, csv_augmentation, json_
     entries = [(flac_file, new_speaker_id) for flac_file in new_flac_files]
 
     # add augmentation entrie
-    add_csv_augmentation(csv_augmentation, entries)
-    add_json_augmentation(json_augmentation, entries)
+    with file_lock:
+        add_csv_augmentation(csv_augmentation, entries)
+        add_json_augmentation(json_augmentation, entries)
 
 
 def preprocess_data(data_path, dest_path, csv_augmentation, json_augmentation, max_workers=10):
